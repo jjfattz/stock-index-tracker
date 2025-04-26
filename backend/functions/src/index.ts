@@ -59,7 +59,12 @@ app.get("/", (req: express.Request, res: express.Response) => {
 
 app.get("/indices", async (req: express.Request, res: express.Response) => {
   const cursorUrl = req.query.cursor as string | undefined;
-  logger.info(`Fetching indices list. Cursor: ${cursorUrl || "None"}`);
+  const searchTerm = req.query.search as string | undefined;
+  logger.info(
+    `Fetching indices list. Cursor: ${cursorUrl || "None"}, Search: ${
+      searchTerm || "None"
+    }`
+  );
 
   try {
     const { restClient } = await import("@polygon.io/client-js");
@@ -84,6 +89,7 @@ app.get("/indices", async (req: express.Request, res: express.Response) => {
         limit: 100, // Limit per page
         sort: "ticker",
         order: "asc",
+        search: searchTerm, // Add search parameter
       });
     }
 

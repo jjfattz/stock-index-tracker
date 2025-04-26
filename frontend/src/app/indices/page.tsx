@@ -15,22 +15,58 @@ interface ApiResponse {
   next_url: string | null;
 }
 
+// Simple debounce function
+const debounce = <F extends (...args: any[]) => any>(
+  func: F,
+  waitFor: number
+) => {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  return (...args: Parameters<F>): Promise<ReturnType<F>> =>
+    new Promise((resolve) => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      timeoutId = setTimeout(() => resolve(func(...args)), waitFor);
+    });
+};
+
 export default function IndicesPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [indices, setIndices] = useState<IndexTicker[]>([]);
-  const [loading, setLoading] = useState(true); // Initial load
-  const [loadingMore, setLoadingMore] = useState(false); // Loading next page
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const observer = useRef<IntersectionObserver | null>(null);
 
+  // Debounce the search term update
+  const debouncedSetSearch = useCallback(
+    debounce(setDebouncedSearchTerm, 500),
+    []
+  );
+
+  useEffect(() => {
+    debouncedSetSearch(searchTerm);
+  }, [searchTerm, debouncedSetSearch]);
+
   const fetchIndices = async (
-    cursor: string | null = null
+    cursor: string | null = null,
+    search: string = ""
   ): Promise<ApiResponse | null> => {
-    const url = cursor
-      ? `/api/indices?cursor=${encodeURIComponent(cursor)}`
-      : "/api/indices";
+    let url = "/api/indices";
+    const params = new URLSearchParams();
+    if (cursor) params.append("cursor", cursor);
+    if (search) params.append("search", search);
+
+    const queryString = params.toString();
+    if (queryString) {
+      url += `?${queryString}`;
+    }
+
     try {
       const response = await fetch(url);
       if (!response.ok) {
@@ -52,29 +88,31 @@ export default function IndicesPage() {
     }
   };
 
-  const loadInitialIndices = useCallback(async () => {
+  const loadInitialIndices = useCallback(async (search: string = "") => {
     setLoading(true);
     setError(null);
-    setNextCursor(null); // Reset cursor for initial load
-    const data = await fetchIndices();
+    setNextCursor(null);
+    setIndices([]); // Clear existing indices on new search/initial load
+    const data = await fetchIndices(null, search);
     if (data) {
       setIndices(data.results);
       setNextCursor(data.next_url);
     }
     setLoading(false);
-  }, []); // No dependencies needed as it uses fetchIndices defined outside
+  }, []);
 
   const loadMoreIndices = useCallback(async () => {
     if (!nextCursor || loadingMore || loading) return;
     setLoadingMore(true);
     setError(null);
-    const data = await fetchIndices(nextCursor);
+    // Pass debounced search term for subsequent loads
+    const data = await fetchIndices(nextCursor, debouncedSearchTerm);
     if (data) {
       setIndices((prevIndices) => [...prevIndices, ...data.results]);
       setNextCursor(data.next_url);
     }
     setLoadingMore(false);
-  }, [nextCursor, loadingMore, loading]); // Dependencies
+  }, [nextCursor, loadingMore, loading, debouncedSearchTerm]);
 
   const lastIndexElementRef = useCallback(
     (node: HTMLDivElement | null) => {
@@ -89,16 +127,17 @@ export default function IndicesPage() {
 
       if (node) observer.current.observe(node);
     },
-    [loading, loadingMore, nextCursor, loadMoreIndices] // Include loadMoreIndices
+    [loading, loadingMore, nextCursor, loadMoreIndices]
   );
 
+  // Effect for initial load and reacting to debounced search term changes
   useEffect(() => {
-    if (!authLoading && !user) {
+    if (!authLoading && user) {
+      loadInitialIndices(debouncedSearchTerm);
+    } else if (!authLoading && !user) {
       router.push("/login");
-    } else if (!authLoading && user) {
-      loadInitialIndices();
     }
-  }, [user, authLoading, router, loadInitialIndices]);
+  }, [user, authLoading, router, loadInitialIndices, debouncedSearchTerm]);
 
   if (authLoading) {
     return (
@@ -112,8 +151,8 @@ export default function IndicesPage() {
     return null; // Redirecting
   }
 
+  // Keep initial loading state until first fetch completes, even if empty
   if (loading && indices.length === 0) {
-    // Show initial loading only if no indices yet
     return (
       <div className="min-h-screen flex items-center justify-center">
         Loading indices...
@@ -135,14 +174,25 @@ export default function IndicesPage() {
 
   return (
     <div className="container mx-auto p-4">
-      <div className="mb-4">
+      <div className="mb-4 flex justify-between items-center">
         <Link href="/">
           <span className="text-blue-500 hover:underline">
             &larr; Back to Dashboard
           </span>
         </Link>
       </div>
-      <h1 className="text-3xl font-bold mb-6">Stock Indices</h1>
+      <h1 className="text-3xl font-bold mb-4">Stock Indices</h1>
+
+      <div className="mb-6">
+        <input
+          type="text"
+          placeholder="Search indices by ticker or name..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+        />
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {indices.map((index, idx) => {
           const isLastElement = indices.length === idx + 1;
@@ -166,7 +216,7 @@ export default function IndicesPage() {
         <div className="text-center py-4 text-gray-500">End of list.</div>
       )}
       {indices.length === 0 && !loading && !error && (
-        <p>No indices found.</p> // Show if fetch completed but returned empty
+        <p>No indices found matching your criteria.</p>
       )}
     </div>
   );
