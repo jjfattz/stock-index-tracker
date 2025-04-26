@@ -58,18 +58,39 @@ app.get("/", (req: express.Request, res: express.Response) => {
 });
 
 app.get("/indices", async (req: express.Request, res: express.Response) => {
-  logger.info("Fetching indices list");
+  const cursorUrl = req.query.cursor as string | undefined;
+  logger.info(`Fetching indices list. Cursor: ${cursorUrl || "None"}`);
+
   try {
     const { restClient } = await import("@polygon.io/client-js");
     const polygon = restClient(polygonApiKey);
-    const indices = await polygon.reference.tickers({
-      market: "indices",
-      active: "true",
-      limit: 1000,
-      sort: "ticker",
-      order: "asc",
+
+    let response;
+    if (cursorUrl) {
+      // Polygon SDK doesn't directly support next_url, so we fetch it manually
+      const rawResponse = await fetch(cursorUrl, {
+        headers: { Authorization: `Bearer ${polygonApiKey}` },
+      });
+      if (!rawResponse.ok) {
+        throw new Error(
+          `Polygon API error fetching next page: ${rawResponse.statusText}`
+        );
+      }
+      response = await rawResponse.json();
+    } else {
+      response = await polygon.reference.tickers({
+        market: "indices",
+        active: "true",
+        limit: 100, // Limit per page
+        sort: "ticker",
+        order: "asc",
+      });
+    }
+
+    res.json({
+      results: response.results || [],
+      next_url: response.next_url || null, // Pass next_url for pagination
     });
-    res.json(indices.results || []);
   } catch (error) {
     logger.error("Error fetching indices from Polygon:", error);
     res.status(500).send("Error fetching stock indices");

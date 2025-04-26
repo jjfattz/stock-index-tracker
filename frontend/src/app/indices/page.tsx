@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
@@ -10,62 +10,115 @@ interface IndexTicker {
   name: string;
 }
 
+interface ApiResponse {
+  results: IndexTicker[];
+  next_url: string | null;
+}
+
 export default function IndicesPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [indices, setIndices] = useState<IndexTicker[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Initial load
+  const [loadingMore, setLoadingMore] = useState(false); // Loading next page
   const [error, setError] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const observer = useRef<IntersectionObserver | null>(null);
+
+  const fetchIndices = async (
+    cursor: string | null = null
+  ): Promise<ApiResponse | null> => {
+    const url = cursor
+      ? `/api/indices?cursor=${encodeURIComponent(cursor)}`
+      : "/api/indices";
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data: ApiResponse = await response.json();
+      if (!Array.isArray(data.results)) {
+        throw new Error("Invalid data format received from API.");
+      }
+      return data;
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("An unexpected error occurred while fetching indices.");
+      }
+      console.error("Error fetching indices:", err);
+      return null;
+    }
+  };
+
+  const loadInitialIndices = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setNextCursor(null); // Reset cursor for initial load
+    const data = await fetchIndices();
+    if (data) {
+      setIndices(data.results);
+      setNextCursor(data.next_url);
+    }
+    setLoading(false);
+  }, []); // No dependencies needed as it uses fetchIndices defined outside
+
+  const loadMoreIndices = useCallback(async () => {
+    if (!nextCursor || loadingMore || loading) return;
+    setLoadingMore(true);
+    setError(null);
+    const data = await fetchIndices(nextCursor);
+    if (data) {
+      setIndices((prevIndices) => [...prevIndices, ...data.results]);
+      setNextCursor(data.next_url);
+    }
+    setLoadingMore(false);
+  }, [nextCursor, loadingMore, loading]); // Dependencies
+
+  const lastIndexElementRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (loading || loadingMore) return;
+      if (observer.current) observer.current.disconnect();
+
+      observer.current = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && nextCursor) {
+          loadMoreIndices();
+        }
+      });
+
+      if (node) observer.current.observe(node);
+    },
+    [loading, loadingMore, nextCursor, loadMoreIndices] // Include loadMoreIndices
+  );
 
   useEffect(() => {
     if (!authLoading && !user) {
       router.push("/login");
+    } else if (!authLoading && user) {
+      loadInitialIndices();
     }
-  }, [user, authLoading, router]);
+  }, [user, authLoading, router, loadInitialIndices]);
 
-  useEffect(() => {
-    if (user) {
-      // Only fetch if user is authenticated
-      const fetchIndices = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-          const response = await fetch("/api/indices");
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          const data = await response.json();
-          setIndices(data);
-        } catch (err: unknown) {
-          if (err instanceof Error) {
-            setError(err.message);
-          } else {
-            setError("An unexpected error occurred while fetching indices.");
-          }
-          console.error("Error fetching indices:", err);
-        } finally {
-          setLoading(false);
-        }
-      };
-
-      fetchIndices();
-    } else if (!authLoading) {
-      // If not loading and no user, stop loading state for this page
-      setLoading(false);
-    }
-  }, [user, authLoading]); // Depend on user and authLoading
-
-  if (authLoading || loading) {
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        Loading indices...
+        Authenticating...
       </div>
     );
   }
 
   if (!user) {
-    // Should be redirected, but render null or a message just in case
-    return null;
+    return null; // Redirecting
+  }
+
+  if (loading && indices.length === 0) {
+    // Show initial loading only if no indices yet
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        Loading indices...
+      </div>
+    );
   }
 
   if (error) {
@@ -91,21 +144,30 @@ export default function IndicesPage() {
       </div>
       <h1 className="text-3xl font-bold mb-6">Stock Indices</h1>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {indices.length > 0 ? (
-          indices.map((index) => (
+        {indices.map((index, idx) => {
+          const isLastElement = indices.length === idx + 1;
+          return (
             <Link href={`/indices/${index.ticker}`} key={index.ticker}>
-              <div className="block p-4 border rounded shadow hover:bg-gray-100 cursor-pointer">
+              <div
+                ref={isLastElement ? lastIndexElementRef : null}
+                className="block p-4 border rounded shadow hover:bg-gray-100 cursor-pointer"
+              >
                 <h2 className="text-xl font-semibold">
                   {parseTicker(index.ticker)}
                 </h2>
                 <p className="text-gray-600">{index.name}</p>
               </div>
             </Link>
-          ))
-        ) : (
-          <p>No indices found.</p>
-        )}
+          );
+        })}
       </div>
+      {loadingMore && <div className="text-center py-4">Loading more...</div>}
+      {!loadingMore && !nextCursor && indices.length > 0 && (
+        <div className="text-center py-4 text-gray-500">End of list.</div>
+      )}
+      {indices.length === 0 && !loading && !error && (
+        <p>No indices found.</p> // Show if fetch completed but returned empty
+      )}
     </div>
   );
 }
