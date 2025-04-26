@@ -7,4 +7,7 @@ typings/
 
 # Node.js dependency directory
 node_modules/
+
+# Local files
 *.local
+.runtimeconfig.json

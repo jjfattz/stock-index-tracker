@@ -1,0 +1,11 @@
+# Emulator logs
+firestore-debug.log
+firebase-debug.log
+firebase-debug.*.log
+
+# Env files
+.env*
+!.env.example
+
+# OS generated files
+.DS_Store
