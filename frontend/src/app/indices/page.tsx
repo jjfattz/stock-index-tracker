@@ -76,15 +76,28 @@ export default function IndicesPage() {
     );
   }
 
+  const parseTicker = (ticker: string) => {
+    return ticker.startsWith("I:") ? ticker.substring(2) : ticker;
+  };
+
   return (
     <div className="container mx-auto p-4">
+      <div className="mb-4">
+        <Link href="/">
+          <span className="text-blue-500 hover:underline">
+            &larr; Back to Dashboard
+          </span>
+        </Link>
+      </div>
       <h1 className="text-3xl font-bold mb-6">Stock Indices</h1>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {indices.length > 0 ? (
           indices.map((index) => (
             <Link href={`/indices/${index.ticker}`} key={index.ticker}>
               <div className="block p-4 border rounded shadow hover:bg-gray-100 cursor-pointer">
-                <h2 className="text-xl font-semibold">{index.ticker}</h2>
+                <h2 className="text-xl font-semibold">
+                  {parseTicker(index.ticker)}
+                </h2>
                 <p className="text-gray-600">{index.name}</p>
               </div>
             </Link>
