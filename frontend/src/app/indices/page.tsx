@@ -45,7 +45,7 @@ export default function IndicesPage() {
 
   // Debounce the search term update
   const debouncedSetSearch = useCallback(
-    debounce(setDebouncedSearchTerm, 500),
+    debounce(setDebouncedSearchTerm, 1000), // Changed delay to 1000ms
     []
   );
 

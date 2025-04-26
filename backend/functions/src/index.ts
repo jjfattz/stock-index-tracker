@@ -72,13 +72,17 @@ app.get("/indices", async (req: express.Request, res: express.Response) => {
 
     let response;
     if (cursorUrl) {
-      // Polygon SDK doesn't directly support next_url, so we fetch it manually
       const rawResponse = await fetch(cursorUrl, {
         headers: { Authorization: `Bearer ${polygonApiKey}` },
       });
       if (!rawResponse.ok) {
-        throw new Error(
-          `Polygon API error fetching next page: ${rawResponse.statusText}`
+        const errorPayload = {
+          status: rawResponse.status,
+          statusText: rawResponse.statusText,
+        };
+        throw Object.assign(
+          new Error(`Polygon API error fetching next page`),
+          errorPayload
         );
       }
       response = await rawResponse.json();
@@ -99,7 +103,8 @@ app.get("/indices", async (req: express.Request, res: express.Response) => {
     });
   } catch (error: any) {
     logger.error("Error fetching indices from Polygon:", error);
-    if (error?.response?.status === 429 || error?.status === 429) {
+    const status = error?.status || error?.response?.status;
+    if (status === 429) {
       res
         .status(429)
         .send("Polygon API rate limit exceeded. Please try again later.");
@@ -155,7 +160,8 @@ const getAggregatesHandler: RequestHandler = async (req, res) => {
     res.json(aggregates.results);
   } catch (error: any) {
     logger.error(`Error fetching aggregates for ${ticker}:`, error);
-    if (error?.response?.status === 429 || error?.status === 429) {
+    const status = error?.status || error?.response?.status;
+    if (status === 429) {
       res
         .status(429)
         .send("Polygon API rate limit exceeded. Please try again later.");
