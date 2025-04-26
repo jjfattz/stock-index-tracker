@@ -3,9 +3,22 @@ import express from "express";
 import * as logger from "firebase-functions/logger";
 import { restClient } from "@polygon.io/client-js";
 import * as admin from "firebase-admin";
+import sgMail from "@sendgrid/mail";
+import { onSchedule, ScheduledEvent } from "firebase-functions/v2/scheduler";
 
 admin.initializeApp();
 const db = admin.firestore();
+
+const sendgridApiKey = functions.config().sendgrid?.key;
+const sendgridSender = functions.config().sendgrid?.sender;
+
+if (!sendgridApiKey || !sendgridSender) {
+  logger.error(
+    "SendGrid API key or sender email not configured. Run 'firebase functions:config:set sendgrid.key=...' and 'firebase functions:config:set sendgrid.sender=...'"
+  );
+} else {
+  sgMail.setApiKey(sendgridApiKey);
+}
 
 const authenticate = async (
   req: express.Request,
@@ -220,3 +233,91 @@ app.delete(
 );
 
 export const api = functions.https.onRequest(app);
+
+export const checkPriceAlerts = onSchedule(
+  "every 24 hours",
+  async (event: ScheduledEvent) => {
+    logger.info("Running scheduled check for price alerts");
+
+    if (!sendgridApiKey || !sendgridSender) {
+      logger.error("SendGrid not configured, skipping alert check.");
+      return;
+    }
+
+    const alertsSnapshot = await db.collection("alerts").get();
+    if (alertsSnapshot.empty) {
+      logger.info("No active alerts found.");
+      return;
+    }
+
+    const promises = alertsSnapshot.docs.map(async (doc) => {
+      const alert = { id: doc.id, ...doc.data() } as any;
+      const ticker = alert.ticker;
+      const threshold = alert.threshold;
+      const condition = alert.condition;
+      const userId = alert.userId;
+
+      try {
+        const formattedTicker = ticker.startsWith("I:")
+          ? ticker
+          : `I:${ticker}`;
+        const quote = await polygon.stocks.lastQuote(formattedTicker);
+
+        if (!quote || !quote.results || !quote.results.p) {
+          logger.warn(`Could not get last quote for ${formattedTicker}`);
+          return;
+        }
+        const currentPrice = quote.results.p;
+
+        logger.info(
+          `Checking alert ${alert.id}: ${formattedTicker} - Current Price: ${currentPrice}, Condition: ${condition} ${threshold}`
+        );
+
+        let conditionMet = false;
+        if (condition === "above" && currentPrice > threshold) {
+          conditionMet = true;
+        } else if (condition === "below" && currentPrice < threshold) {
+          conditionMet = true;
+        }
+
+        if (conditionMet) {
+          logger.info(
+            `Alert condition met for ${alert.id}. Sending notification.`
+          );
+
+          const userRecord = await admin.auth().getUser(userId);
+          const userEmail = userRecord.email;
+
+          if (!userEmail) {
+            logger.error(`Could not find email for user ${userId}`);
+            return;
+          }
+
+          const msg = {
+            to: userEmail,
+            from: sendgridSender,
+            subject: `Price Alert Triggered for ${ticker}`,
+            text: `Your price alert for ${ticker} has been triggered.\nCondition: Price ${condition} ${threshold}\nCurrent Price: ${currentPrice}`,
+            html: `<strong>Your price alert for ${ticker} has been triggered.</strong><br>Condition: Price ${condition} ${threshold}<br>Current Price: ${currentPrice}`,
+          };
+
+          await sgMail.send(msg);
+          logger.info(
+            `Notification email sent to ${userEmail} for alert ${alert.id}`
+          );
+
+          await db.collection("alerts").doc(alert.id).delete();
+          logger.info(`Deleted triggered alert ${alert.id}`);
+        }
+      } catch (error) {
+        logger.error(
+          `Error processing alert ${alert.id} for ticker ${ticker}:`,
+          error
+        );
+      }
+    });
+
+    await Promise.all(promises);
+    logger.info("Finished checking price alerts.");
+  }
+);
