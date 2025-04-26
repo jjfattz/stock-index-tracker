@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import ChartComponent from "@/components/ChartComponent";
 import { CandlestickData, Time } from "lightweight-charts";
 import Link from "next/link";
@@ -21,8 +21,9 @@ interface AggregateData {
 
 export default function IndexDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const ticker = params?.ticker as string;
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [chartData, setChartData] = useState<CandlestickData<Time>[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,60 +37,72 @@ export default function IndexDetailPage() {
   } | null>(null);
 
   useEffect(() => {
-    if (!ticker) return;
+    if (!authLoading && !user) {
+      router.push("/login");
+    }
+  }, [user, authLoading, router]);
 
-    const fetchAggregateData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const response = await fetch(`/api/indices/${ticker}/aggregates`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+  useEffect(() => {
+    if (!ticker) {
+      setError("Ticker not found in URL.");
+      setLoading(false);
+      return;
+    }
+    if (user) {
+      // Only fetch if user is authenticated
+      const fetchAggregateData = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+          const response = await fetch(`/api/indices/${ticker}/aggregates`);
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const data: AggregateData[] = await response.json();
+
+          if (!Array.isArray(data)) {
+            console.error("Received non-array data:", data);
+            throw new Error("Invalid data format received from API.");
+          }
+
+          const formattedData: CandlestickData<Time>[] = data.map((agg) => ({
+            time: (agg.t / 1000) as Time,
+            open: agg.o,
+            high: agg.h,
+            low: agg.l,
+            close: agg.c,
+          }));
+          setChartData(formattedData);
+        } catch (err: unknown) {
+          if (err instanceof Error) {
+            setError(err.message);
+          } else {
+            setError("An unexpected error occurred while fetching chart data.");
+          }
+          console.error(`Error fetching aggregates for ${ticker}:`, err);
+        } finally {
+          setLoading(false);
         }
-        const data: AggregateData[] = await response.json();
+      };
 
-        if (!Array.isArray(data)) {
-          console.error("Received non-array data:", data);
-          throw new Error("Invalid data format received from API.");
-        }
+      fetchAggregateData();
+    } else if (!authLoading) {
+      // If not loading and no user, stop loading state for this page
+      setLoading(false);
+    }
+  }, [ticker, user, authLoading]); // Depend on ticker, user, and authLoading
 
-        const formattedData: CandlestickData<Time>[] = data.map((agg) => ({
-          time: (agg.t / 1000) as Time,
-          open: agg.o,
-          high: agg.h,
-          low: agg.l,
-          close: agg.c,
-        }));
-        setChartData(formattedData);
-      } catch (err: unknown) {
-        if (err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError("An unexpected error occurred while fetching chart data.");
-        }
-        console.error(`Error fetching aggregates for ${ticker}:`, err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAggregateData();
-  }, [ticker]);
-
-  if (!ticker) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        Invalid ticker provided.
-      </div>
-    );
-  }
-
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         Loading chart data for {ticker}...
       </div>
     );
+  }
+
+  if (!user) {
+    // Should be redirected, but render null or a message just in case
+    return null;
   }
 
   if (error) {

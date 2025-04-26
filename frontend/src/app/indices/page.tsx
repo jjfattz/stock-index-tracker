@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useAuth } from "@/context/AuthContext";
+import { useRouter } from "next/navigation";
 
 interface IndexTicker {
   ticker: string;
@@ -9,42 +11,61 @@ interface IndexTicker {
 }
 
 export default function IndicesPage() {
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [indices, setIndices] = useState<IndexTicker[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchIndices = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const response = await fetch("/api/indices");
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        setIndices(data);
-      } catch (err: unknown) {
-        if (err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError("An unexpected error occurred while fetching indices.");
-        }
-        console.error("Error fetching indices:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (!authLoading && !user) {
+      router.push("/login");
+    }
+  }, [user, authLoading, router]);
 
-    fetchIndices();
-  }, []);
+  useEffect(() => {
+    if (user) {
+      // Only fetch if user is authenticated
+      const fetchIndices = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+          const response = await fetch("/api/indices");
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const data = await response.json();
+          setIndices(data);
+        } catch (err: unknown) {
+          if (err instanceof Error) {
+            setError(err.message);
+          } else {
+            setError("An unexpected error occurred while fetching indices.");
+          }
+          console.error("Error fetching indices:", err);
+        } finally {
+          setLoading(false);
+        }
+      };
 
-  if (loading) {
+      fetchIndices();
+    } else if (!authLoading) {
+      // If not loading and no user, stop loading state for this page
+      setLoading(false);
+    }
+  }, [user, authLoading]); // Depend on user and authLoading
+
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         Loading indices...
       </div>
     );
+  }
+
+  if (!user) {
+    // Should be redirected, but render null or a message just in case
+    return null;
   }
 
   if (error) {

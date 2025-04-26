@@ -66,9 +66,8 @@ app.get("/indices", async (req: express.Request, res: express.Response) => {
     const polygon = restClient(polygonApiKey);
     const indices = await polygon.reference.tickers({
       type: "INDEX",
-      market: "indices",
       active: "true",
-      limit: 100,
+      limit: 1000, // Increased limit
     });
     res.json(indices.results || []);
   } catch (error) {
