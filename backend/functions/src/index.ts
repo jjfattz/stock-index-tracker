@@ -1,7 +1,6 @@
 import * as functions from "firebase-functions";
 import express from "express";
 import * as logger from "firebase-functions/logger";
-// Removed static import: import { restClient } from "@polygon.io/client-js";
 import * as admin from "firebase-admin";
 import sgMail from "@sendgrid/mail";
 import { onSchedule, ScheduledEvent } from "firebase-functions/v2/scheduler";
@@ -49,7 +48,6 @@ if (!polygonApiKey) {
     "Polygon API key not configured. Run 'firebase functions:config:set polygon.key=\"YOUR_API_KEY\"'"
   );
 }
-// Removed top-level client init: const polygon = restClient(polygonApiKey);
 
 const app = express();
 app.use(express.json());
@@ -65,9 +63,11 @@ app.get("/indices", async (req: express.Request, res: express.Response) => {
     const { restClient } = await import("@polygon.io/client-js");
     const polygon = restClient(polygonApiKey);
     const indices = await polygon.reference.tickers({
-      type: "INDEX",
+      market: "indices",
       active: "true",
-      limit: 1000, // Increased limit
+      limit: 1000,
+      sort: "ticker",
+      order: "asc",
     });
     res.json(indices.results || []);
   } catch (error) {
@@ -236,8 +236,6 @@ app.delete(
 );
 
 export const api = functions.https.onRequest(app);
-// Explicitly return app just in case - though onRequest should handle it.
-// export const api = app;
 
 export const checkPriceAlerts = onSchedule(
   "every 24 hours",
@@ -267,7 +265,6 @@ export const checkPriceAlerts = onSchedule(
           ? ticker
           : `I:${ticker}`;
 
-        // Dynamically import and init polygon client inside the loop
         const { restClient } = await import("@polygon.io/client-js");
         const polygon = restClient(polygonApiKey);
         const quote = await polygon.stocks.lastQuote(formattedTicker);
