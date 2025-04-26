@@ -34,4 +34,55 @@ app.get("/indices", async (req: express.Request, res: express.Response) => {
   }
 });
 
+import { RequestHandler } from "express";
+
+const getAggregatesHandler: RequestHandler = async (req, res) => {
+  const { ticker } = req.params;
+  logger.info(`Fetching daily aggregates for index: ${ticker}`);
+
+  if (!ticker) {
+    res.status(400).send("Ticker parameter is required");
+    return; // Exit function early
+  }
+
+  try {
+    const today = new Date();
+    const sixtyDaysAgo = new Date();
+    sixtyDaysAgo.setDate(today.getDate() - 60);
+
+    const to = today.toISOString().split("T")[0]; // YYYY-MM-DD
+    const from = sixtyDaysAgo.toISOString().split("T")[0]; // YYYY-MM-DD
+
+    // Indices often need 'I:' prefix for Polygon API
+    const formattedTicker = ticker.startsWith("I:") ? ticker : `I:${ticker}`;
+
+    const aggregates = await polygon.stocks.aggregates(
+      formattedTicker,
+      1,
+      "day",
+      from,
+      to,
+      {
+        adjusted: "true",
+        sort: "asc",
+      }
+    );
+
+    if (!aggregates.results) {
+      logger.warn(
+        `No aggregate data found for ${formattedTicker} from ${from} to ${to}`
+      );
+      res.json([]); // Send empty array
+      return; // Exit function early
+    }
+
+    res.json(aggregates.results);
+  } catch (error) {
+    logger.error(`Error fetching aggregates for ${ticker}:`, error);
+    res.status(500).send(`Error fetching aggregate data for ${ticker}`);
+  }
+};
+
+app.get("/indices/:ticker/aggregates", getAggregatesHandler);
+
 export const api = functions.https.onRequest(app);
