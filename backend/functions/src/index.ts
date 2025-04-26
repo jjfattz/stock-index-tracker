@@ -1,7 +1,7 @@
 import * as functions from "firebase-functions";
 import express from "express";
 import * as logger from "firebase-functions/logger";
-import { restClient } from "@polygon.io/client-js";
+// Removed static import: import { restClient } from "@polygon.io/client-js";
 import * as admin from "firebase-admin";
 import sgMail from "@sendgrid/mail";
 import { onSchedule, ScheduledEvent } from "firebase-functions/v2/scheduler";
@@ -49,7 +49,7 @@ if (!polygonApiKey) {
     "Polygon API key not configured. Run 'firebase functions:config:set polygon.key=\"YOUR_API_KEY\"'"
   );
 }
-const polygon = restClient(polygonApiKey);
+// Removed top-level client init: const polygon = restClient(polygonApiKey);
 
 const app = express();
 app.use(express.json());
@@ -62,6 +62,8 @@ app.get("/", (req: express.Request, res: express.Response) => {
 app.get("/indices", async (req: express.Request, res: express.Response) => {
   logger.info("Fetching indices list");
   try {
+    const { restClient } = await import("@polygon.io/client-js");
+    const polygon = restClient(polygonApiKey);
     const indices = await polygon.reference.tickers({
       type: "INDEX",
       market: "indices",
@@ -96,6 +98,8 @@ const getAggregatesHandler: RequestHandler = async (req, res) => {
 
     const formattedTicker = ticker.startsWith("I:") ? ticker : `I:${ticker}`;
 
+    const { restClient } = await import("@polygon.io/client-js");
+    const polygon = restClient(polygonApiKey);
     const aggregates = await polygon.stocks.aggregates(
       formattedTicker,
       1,
@@ -233,6 +237,8 @@ app.delete(
 );
 
 export const api = functions.https.onRequest(app);
+// Explicitly return app just in case - though onRequest should handle it.
+// export const api = app;
 
 export const checkPriceAlerts = onSchedule(
   "every 24 hours",
@@ -261,6 +267,10 @@ export const checkPriceAlerts = onSchedule(
         const formattedTicker = ticker.startsWith("I:")
           ? ticker
           : `I:${ticker}`;
+
+        // Dynamically import and init polygon client inside the loop
+        const { restClient } = await import("@polygon.io/client-js");
+        const polygon = restClient(polygonApiKey);
         const quote = await polygon.stocks.lastQuote(formattedTicker);
 
         if (!quote || !quote.results || !quote.results.p) {
