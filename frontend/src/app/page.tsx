@@ -34,6 +34,18 @@ export default function Home() {
       {user ? (
         <div className="text-center">
           <p className="mb-4">Welcome, {user.email}!</p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-6">
+            <Link href="/indices">
+              <span className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded cursor-pointer inline-block">
+                View Indices
+              </span>
+            </Link>
+            <Link href="/alerts">
+              <span className="bg-orange-500 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded cursor-pointer inline-block">
+                My Alerts
+              </span>
+            </Link>
+          </div>
           <button
             onClick={handleLogout}
             className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
