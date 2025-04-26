@@ -56,6 +56,9 @@ export default function IndexDetailPage() {
         try {
           const response = await fetch(`/api/indices/${ticker}/aggregates`);
           if (!response.ok) {
+            if (response.status === 429) {
+              throw new Error("Rate limit exceeded. Please try again later.");
+            }
             throw new Error(`HTTP error! status: ${response.status}`);
           }
           const data: AggregateData[] = await response.json();

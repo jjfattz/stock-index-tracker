@@ -70,6 +70,9 @@ export default function IndicesPage() {
     try {
       const response = await fetch(url);
       if (!response.ok) {
+        if (response.status === 429) {
+          throw new Error("Rate limit exceeded. Please try again later.");
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data: ApiResponse = await response.json();

@@ -86,20 +86,26 @@ app.get("/indices", async (req: express.Request, res: express.Response) => {
       response = await polygon.reference.tickers({
         market: "indices",
         active: "true",
-        limit: 100, // Limit per page
+        limit: 100,
         sort: "ticker",
         order: "asc",
-        search: searchTerm, // Add search parameter
+        search: searchTerm,
       });
     }
 
     res.json({
       results: response.results || [],
-      next_url: response.next_url || null, // Pass next_url for pagination
+      next_url: response.next_url || null,
     });
-  } catch (error) {
+  } catch (error: any) {
     logger.error("Error fetching indices from Polygon:", error);
-    res.status(500).send("Error fetching stock indices");
+    if (error?.response?.status === 429 || error?.status === 429) {
+      res
+        .status(429)
+        .send("Polygon API rate limit exceeded. Please try again later.");
+    } else {
+      res.status(500).send("Error fetching stock indices");
+    }
   }
 });
 
@@ -147,9 +153,15 @@ const getAggregatesHandler: RequestHandler = async (req, res) => {
     }
 
     res.json(aggregates.results);
-  } catch (error) {
+  } catch (error: any) {
     logger.error(`Error fetching aggregates for ${ticker}:`, error);
-    res.status(500).send(`Error fetching aggregate data for ${ticker}`);
+    if (error?.response?.status === 429 || error?.status === 429) {
+      res
+        .status(429)
+        .send("Polygon API rate limit exceeded. Please try again later.");
+    } else {
+      res.status(500).send(`Error fetching aggregate data for ${ticker}`);
+    }
   }
 };
 
