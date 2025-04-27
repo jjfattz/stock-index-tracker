@@ -5,12 +5,13 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useToast } from "@/context/ToastContext";
 
 export default function Navbar() {
   const { user } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const { addToast } = useToast();
 
   const handleLogout = async () => {
@@ -33,10 +34,32 @@ export default function Navbar() {
         <div className="space-x-4">
           {user ? (
             <>
-              <Link href="/indices" className="hover:text-gray-300">
-                View Indices
+              <Link
+                href="/"
+                className={`${
+                  pathname === "/" ? "text-blue-400" : "hover:text-gray-300"
+                }`}
+              >
+                Dashboard
               </Link>
-              <Link href="/alerts" className="hover:text-gray-300">
+              <Link
+                href="/indices"
+                className={`${
+                  pathname === "/indices"
+                    ? "text-blue-400"
+                    : "hover:text-gray-300"
+                }`}
+              >
+                Browse Indices
+              </Link>
+              <Link
+                href="/alerts"
+                className={`${
+                  pathname === "/alerts"
+                    ? "text-blue-400"
+                    : "hover:text-gray-300"
+                }`}
+              >
                 My Alerts
               </Link>
               <button
@@ -48,10 +71,24 @@ export default function Navbar() {
             </>
           ) : (
             <>
-              <Link href="/login" className="hover:text-gray-300">
+              <Link
+                href="/login"
+                className={`${
+                  pathname === "/login"
+                    ? "text-blue-400"
+                    : "hover:text-gray-300"
+                }`}
+              >
                 Login
               </Link>
-              <Link href="/signup" className="hover:text-gray-300">
+              <Link
+                href="/signup"
+                className={`${
+                  pathname === "/signup"
+                    ? "text-blue-400"
+                    : "hover:text-gray-300"
+                }`}
+              >
                 Sign Up
               </Link>
             </>
