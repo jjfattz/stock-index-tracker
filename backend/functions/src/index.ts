@@ -1,10 +1,15 @@
 import * as functions from "firebase-functions";
-import express from "express";
+import express, {
+  Request,
+  Response,
+  NextFunction,
+  RequestHandler,
+} from "express";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
 import sgMail from "@sendgrid/mail";
 import { onSchedule, ScheduledEvent } from "firebase-functions/v2/scheduler";
-import axios from "axios"; // Import axios
+import axios, { AxiosError } from "axios";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -23,15 +28,13 @@ if (!sendgridApiKey || !sendgridSender) {
 const authenticate = async (
   req: express.Request,
   res: express.Response,
-  next: express.NextFunction
+  next: NextFunction
 ) => {
   const idToken = req.headers.authorization?.split("Bearer ")[1];
-
   if (!idToken) {
     res.status(401).send("Unauthorized: No token provided");
     return;
   }
-
   try {
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     (req as any).user = decodedToken;
@@ -52,15 +55,68 @@ if (!polygonApiKey) {
 
 const polygonApiBaseUrl = "https://api.polygon.io";
 
+const polygonApiClient = axios.create({
+  baseURL: polygonApiBaseUrl,
+  headers: {
+    Authorization: `Bearer ${polygonApiKey}`,
+  },
+});
+
+interface AuthenticatedRequest extends Request {
+  user?: admin.auth.DecodedIdToken;
+}
+
+const handlePolygonApiError = (error: any, res: Response, context: string) => {
+  logger.error(`Error ${context}:`, error);
+  if (axios.isAxiosError(error)) {
+    const axiosError = error as AxiosError;
+    const status = axiosError.response?.status;
+    const errorMessage =
+      (axiosError.response?.data as any)?.message || axiosError.message;
+    const requestId = (axiosError.response?.data as any)?.request_id;
+
+    if (status === 429) {
+      res
+        .status(429)
+        .send(
+          `Polygon API rate limit exceeded. Please try again later.${
+            requestId ? ` (Request ID: ${requestId})` : ""
+          }`
+        );
+      return;
+    } else if (status === 403) {
+      res
+        .status(403)
+        .send(
+          `Polygon API Authorization Error: ${errorMessage}${
+            requestId ? ` (Request ID: ${requestId})` : ""
+          }`
+        );
+      return;
+    } else if (status === 503) {
+      res
+        .status(503)
+        .send(
+          `Polygon API Error: ${errorMessage}${
+            requestId ? ` (Request ID: ${requestId})` : ""
+          }`
+        );
+      return;
+    }
+  }
+  res.status(500).send(`An internal server error occurred while ${context}.`);
+  return;
+};
+
 const app = express();
 app.use(express.json());
 
-app.get("/", (req: express.Request, res: express.Response) => {
+app.get("/", (req: Request, res: Response) => {
   logger.info("API root accessed");
   res.send("Stock Index Tracker API");
 });
 
-app.get("/indices", async (req: express.Request, res: express.Response) => {
+app.get("/indices", async (req: Request, res: Response) => {
   const cursorUrl = req.query.cursor as string | undefined;
   const searchTerm = req.query.search as string | undefined;
   logger.info(
@@ -70,14 +126,16 @@ app.get("/indices", async (req: express.Request, res: express.Response) => {
   );
 
   try {
-    let url: string;
-    const headers = { Authorization: `Bearer ${polygonApiKey}` };
-
     if (cursorUrl) {
-      // Use the next_url directly if provided
-      url = cursorUrl;
+      const response = await axios.get(cursorUrl, {
+        headers: { Authorization: `Bearer ${polygonApiKey}` },
+      });
+      res.json({
+        results: response.data.results || [],
+        next_url: response.data.next_url || null,
+      });
+      return;
     } else {
-      // Construct the initial URL
       const params = new URLSearchParams({
         market: "indices",
         active: "true",
@@ -88,53 +146,20 @@ app.get("/indices", async (req: express.Request, res: express.Response) => {
       if (searchTerm) {
         params.append("search", searchTerm);
       }
-      url = `${polygonApiBaseUrl}/v3/reference/tickers?${params.toString()}`;
+      const response = await polygonApiClient.get(`/v3/reference/tickers`, {
+        params,
+      });
+      res.json({
+        results: response.data.results || [],
+        next_url: response.data.next_url || null,
+      });
+      return;
     }
-
-    const response = await axios.get(url, { headers });
-
-    res.json({
-      results: response.data.results || [],
-      next_url: response.data.next_url || null,
-    });
-  } catch (error: any) {
-    logger.error("Error fetching indices from Polygon:", error);
-    const status = error.response?.status;
-    const errorMessage =
-      error.response?.data?.message || error.message || "Unknown Polygon Error";
-    const requestId = error.response?.data?.request_id;
-
-    if (status === 429) {
-      res
-        .status(429)
-        .send("Polygon API rate limit exceeded. Please try again later.");
-    } else if (status === 403) {
-      res
-        .status(403)
-        .send(
-          `Polygon API Authorization Error: ${errorMessage}${
-            requestId ? ` (Request ID: ${requestId})` : ""
-          }`
-        );
-    } else if (status === 503) {
-      res
-        .status(503)
-        .send(
-          `Polygon API Error: ${errorMessage}${
-            requestId ? ` (Request ID: ${requestId})` : ""
-          }`
-        );
-    } else {
-      res
-        .status(500)
-        .send(
-          "An internal server error occurred while fetching stock indices."
-        );
-    }
+  } catch (error) {
+    handlePolygonApiError(error, res, "fetching stock indices");
+    return;
   }
 });
-
-import { RequestHandler } from "express";
 
 const getAggregatesHandler: RequestHandler = async (req, res) => {
   const { ticker } = req.params;
@@ -149,17 +174,14 @@ const getAggregatesHandler: RequestHandler = async (req, res) => {
     const today = new Date();
     const sixtyDaysAgo = new Date();
     sixtyDaysAgo.setDate(today.getDate() - 60);
-
     const to = today.toISOString().split("T")[0];
     const from = sixtyDaysAgo.toISOString().split("T")[0];
-
     const formattedTicker = ticker.startsWith("I:") ? ticker : `I:${ticker}`;
 
-    const url = `${polygonApiBaseUrl}/v2/aggs/ticker/${formattedTicker}/range/1/day/${from}/${to}`;
+    const url = `/v2/aggs/ticker/${formattedTicker}/range/1/day/${from}/${to}`;
     const params = { adjusted: "true", sort: "asc" };
-    const headers = { Authorization: `Bearer ${polygonApiKey}` };
 
-    const response = await axios.get(url, { params, headers });
+    const response = await polygonApiClient.get(url, { params });
 
     if (!response.data.results) {
       logger.warn(
@@ -168,61 +190,29 @@ const getAggregatesHandler: RequestHandler = async (req, res) => {
       res.json([]);
       return;
     }
-
     res.json(response.data.results);
-  } catch (error: any) {
-    logger.error(`Error fetching aggregates for ${ticker}:`, error);
-    const status = error.response?.status;
-    const errorMessage =
-      error.response?.data?.message || error.message || "Unknown Polygon Error";
-    const requestId = error.response?.data?.request_id;
-
-    if (status === 429) {
-      res
-        .status(429)
-        .send(
-          `Polygon API rate limit exceeded. Please try again later. ${
-            requestId ? ` (Request ID: ${requestId})` : ""
-          }`
-        );
-    } else if (status === 403) {
-      res
-        .status(403)
-        .send(
-          `Data entitlement required. Upgrade Polygon plan for index aggregates. ${
-            requestId ? ` (Request ID: ${requestId})` : ""
-          }`
-        );
-    } else if (status === 503) {
-      res
-        .status(503)
-        .send(
-          `Polygon API Error: ${errorMessage}${
-            requestId ? ` (Request ID: ${requestId})` : ""
-          }`
-        );
-    } else {
-      res
-        .status(500)
-        .send(
-          `An internal server error occurred while fetching aggregate data for ${ticker}.`
-        );
-    }
+    return;
+  } catch (error) {
+    handlePolygonApiError(error, res, `fetching aggregate data for ${ticker}`);
+    return;
   }
 };
-
 app.get("/indices/:ticker/aggregates", getAggregatesHandler);
 
 app.post(
   "/alerts",
   authenticate,
-  async (req: express.Request, res: express.Response) => {
-    const userId = (req as any).user.uid;
-    const { ticker, threshold, condition } = req.body;
+  async (req: AuthenticatedRequest, res: Response) => {
+    const userId = req.user?.uid;
+    if (!userId) {
+      res.status(401).send("Authentication error.");
+      return;
+    }
 
+    const { ticker, threshold, condition } = req.body;
     if (
       !ticker ||
-      !threshold ||
+      threshold === undefined ||
       !condition ||
       (condition !== "above" && condition !== "below")
     ) {
@@ -237,7 +227,6 @@ app.post(
     logger.info(
       `User ${userId} creating alert for ${ticker} ${condition} ${threshold}`
     );
-
     try {
       const alertData = {
         userId,
@@ -260,10 +249,14 @@ app.post(
 app.get(
   "/alerts",
   authenticate,
-  async (req: express.Request, res: express.Response) => {
-    const userId = (req as any).user.uid;
-    logger.info(`Fetching alerts for user ${userId}`);
+  async (req: AuthenticatedRequest, res: Response) => {
+    const userId = req.user?.uid;
+    if (!userId) {
+      res.status(401).send("Authentication error.");
+      return;
+    }
 
+    logger.info(`Fetching alerts for user ${userId}`);
     try {
       const alertsSnapshot = await db
         .collection("alerts")
@@ -287,11 +280,15 @@ app.get(
 app.delete(
   "/alerts/:alertId",
   authenticate,
-  async (req: express.Request, res: express.Response) => {
-    const userId = (req as any).user.uid;
+  async (req: AuthenticatedRequest, res: Response) => {
+    const userId = req.user?.uid;
     const { alertId } = req.params;
-    logger.info(`User ${userId} deleting alert ${alertId}`);
+    if (!userId) {
+      res.status(401).send("Authentication error.");
+      return;
+    }
 
+    logger.info(`User ${userId} deleting alert ${alertId}`);
     try {
       const alertRef = db.collection("alerts").doc(alertId);
       const doc = await alertRef.get();
@@ -300,7 +297,6 @@ app.delete(
         res.status(404).send("Alert not found");
         return;
       }
-
       if (doc.data()?.userId !== userId) {
         res.status(403).send("Forbidden: You can only delete your own alerts");
         return;
@@ -327,6 +323,10 @@ export const checkPriceAlerts = onSchedule(
   async (event: ScheduledEvent) => {
     logger.info("Running scheduled check for price alerts");
 
+    if (!polygonApiKey) {
+      logger.error("Polygon API key not configured. Skipping alert check.");
+      return;
+    }
     if (!sendgridApiKey || !sendgridSender) {
       logger.error("SendGrid not configured, skipping alert check.");
       return;
@@ -339,52 +339,46 @@ export const checkPriceAlerts = onSchedule(
     }
 
     const promises = alertsSnapshot.docs.map(async (doc) => {
-      const alert = { id: doc.id, ...doc.data() } as any;
-      const ticker = alert.ticker;
-      const threshold = alert.threshold;
-      const condition = alert.condition;
-      const userId = alert.userId;
+      const alert = doc.data();
+      const alertId = doc.id;
+      const { ticker, threshold, condition, userId } = alert;
 
       try {
         const formattedTicker = ticker.startsWith("I:")
           ? ticker
           : `I:${ticker}`;
-
-        const url = `${polygonApiBaseUrl}/v2/last/trade/${formattedTicker}`; // Using Last Trade endpoint
+        const url = `${polygonApiBaseUrl}/v2/last/trade/${formattedTicker}`;
         const headers = { Authorization: `Bearer ${polygonApiKey}` };
+
         const response = await axios.get(url, { headers });
 
-        if (
-          !response.data ||
-          !response.data.results ||
-          !response.data.results.p
-        ) {
-          logger.warn(`Could not get last trade price for ${formattedTicker}`);
+        if (!response.data?.results?.p) {
+          logger.warn(
+            `Could not get last trade price for ${formattedTicker} (Alert ID: ${alertId})`
+          );
           return;
         }
         const currentPrice = response.data.results.p;
 
         logger.info(
-          `Checking alert ${alert.id}: ${formattedTicker} - Current Price: ${currentPrice}, Condition: ${condition} ${threshold}`
+          `Checking alert ${alertId}: ${formattedTicker} - Current Price: ${currentPrice}, Condition: ${condition} ${threshold}`
         );
 
-        let conditionMet = false;
-        if (condition === "above" && currentPrice > threshold) {
-          conditionMet = true;
-        } else if (condition === "below" && currentPrice < threshold) {
-          conditionMet = true;
-        }
+        let conditionMet =
+          (condition === "above" && currentPrice > threshold) ||
+          (condition === "below" && currentPrice < threshold);
 
         if (conditionMet) {
           logger.info(
-            `Alert condition met for ${alert.id}. Sending notification.`
+            `Alert condition met for ${alertId}. Sending notification.`
           );
-
           const userRecord = await admin.auth().getUser(userId);
           const userEmail = userRecord.email;
 
           if (!userEmail) {
-            logger.error(`Could not find email for user ${userId}`);
+            logger.error(
+              `Could not find email for user ${userId} (Alert ID: ${alertId})`
+            );
             return;
           }
 
@@ -398,19 +392,17 @@ export const checkPriceAlerts = onSchedule(
 
           await sgMail.send(msg);
           logger.info(
-            `Notification email sent to ${userEmail} for alert ${alert.id}`
+            `Notification email sent to ${userEmail} for alert ${alertId}`
           );
 
-          await db.collection("alerts").doc(alert.id).delete();
-          logger.info(`Deleted triggered alert ${alert.id}`);
+          await db.collection("alerts").doc(alertId).delete();
+          logger.info(`Deleted triggered alert ${alertId}`);
         }
       } catch (error: any) {
         logger.error(
-          `Error processing alert ${alert.id} for ticker ${ticker}:`,
+          `Error processing alert ${alertId} for ticker ${ticker}:`,
           error
         );
-        // Decide if specific error handling (like for 429) is needed here too
-        // For now, just log the error and continue with other alerts
       }
     });
 
