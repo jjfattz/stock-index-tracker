@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/context/ToastContext";
 
 interface IndexTicker {
   ticker: string;
@@ -37,10 +38,12 @@ export default function IndicesPage() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasErrorOccurred, setHasErrorOccurred] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const observer = useRef<IntersectionObserver | null>(null);
+  const { addToast } = useToast();
 
   const debouncedSetSearch = useCallback(
     debounce(setDebouncedSearchTerm, 1000),
@@ -51,66 +54,77 @@ export default function IndicesPage() {
     debouncedSetSearch(searchTerm);
   }, [searchTerm, debouncedSetSearch]);
 
-  const fetchIndices = async (
-    cursor: string | null = null,
-    search: string = ""
-  ): Promise<ApiResponse | null> => {
-    let url = "/api/indices";
-    const params = new URLSearchParams();
-    if (cursor) params.append("cursor", cursor);
-    if (search) params.append("search", search);
+  const fetchIndices = useCallback(
+    async (
+      cursor: string | null = null,
+      search: string = ""
+    ): Promise<ApiResponse | null> => {
+      let url = "/api/indices";
+      const params = new URLSearchParams();
+      if (cursor) params.append("cursor", cursor);
+      if (search) params.append("search", search);
 
-    const queryString = params.toString();
-    if (queryString) {
-      url += `?${queryString}`;
-    }
+      const queryString = params.toString();
+      if (queryString) {
+        url += `?${queryString}`;
+      }
 
-    try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        const errorText = await response.text();
-        if (
-          response.status === 403 ||
-          response.status === 429 ||
-          response.status === 503
-        ) {
-          throw new Error(
-            errorText || `HTTP error! status: ${response.status}`
-          );
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          const errorText = await response.text();
+          if (
+            response.status === 403 ||
+            response.status === 429 ||
+            response.status === 503
+          ) {
+            throw new Error(
+              errorText || `HTTP error! status: ${response.status}`
+            );
+          }
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const data: ApiResponse = await response.json();
+        if (!Array.isArray(data.results)) {
+          throw new Error("Invalid data format received from API.");
+        }
+        setHasErrorOccurred(false);
+        return data;
+      } catch (err: unknown) {
+        setHasErrorOccurred(true);
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError("An unexpected error occurred while fetching indices.");
+        }
+        console.error("Error fetching indices:", err);
+        return null;
       }
-      const data: ApiResponse = await response.json();
-      if (!Array.isArray(data.results)) {
-        throw new Error("Invalid data format received from API.");
-      }
-      return data;
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError("An unexpected error occurred while fetching indices.");
-      }
-      console.error("Error fetching indices:", err);
-      return null;
-    }
-  };
+    },
+    [addToast]
+  );
 
-  const loadInitialIndices = useCallback(async (search: string = "") => {
-    setLoading(true);
-    setError(null);
-    setNextCursor(null);
-    setIndices([]);
-    const data = await fetchIndices(null, search);
-    if (data) {
-      setIndices(data.results);
-      setNextCursor(data.next_url);
-    }
-    setLoading(false);
-  }, []);
+  const loadInitialIndices = useCallback(
+    async (search: string = "") => {
+      if (hasErrorOccurred && search === debouncedSearchTerm) return;
+
+      setLoading(true);
+      setError(null);
+      setHasErrorOccurred(false);
+      setNextCursor(null);
+      setIndices([]);
+      const data = await fetchIndices(null, search);
+      if (data) {
+        setIndices(data.results);
+        setNextCursor(data.next_url);
+      }
+      setLoading(false);
+    },
+    [fetchIndices, hasErrorOccurred, debouncedSearchTerm]
+  );
 
   const loadMoreIndices = useCallback(async () => {
-    if (!nextCursor || loadingMore || loading) return;
+    if (!nextCursor || loadingMore || loading || hasErrorOccurred) return;
     setLoadingMore(true);
     setError(null);
     const data = await fetchIndices(nextCursor, debouncedSearchTerm);
@@ -119,11 +133,18 @@ export default function IndicesPage() {
       setNextCursor(data.next_url);
     }
     setLoadingMore(false);
-  }, [nextCursor, loadingMore, loading, debouncedSearchTerm]);
+  }, [
+    nextCursor,
+    loadingMore,
+    loading,
+    debouncedSearchTerm,
+    fetchIndices,
+    hasErrorOccurred,
+  ]);
 
   const lastIndexElementRef = useCallback(
     (node: HTMLDivElement | null) => {
-      if (loading || loadingMore) return;
+      if (loading || loadingMore || hasErrorOccurred) return;
       if (observer.current) observer.current.disconnect();
 
       observer.current = new IntersectionObserver((entries) => {
@@ -134,7 +155,7 @@ export default function IndicesPage() {
 
       if (node) observer.current.observe(node);
     },
-    [loading, loadingMore, nextCursor, loadMoreIndices]
+    [loading, loadingMore, nextCursor, loadMoreIndices, hasErrorOccurred]
   );
 
   useEffect(() => {
@@ -144,6 +165,12 @@ export default function IndicesPage() {
       router.push("/login");
     }
   }, [user, authLoading, router, loadInitialIndices, debouncedSearchTerm]);
+
+  useEffect(() => {
+    if (error) {
+      addToast(error.replace(/I:/g, ""), "error");
+    }
+  }, [error, addToast]);
 
   if (authLoading) {
     return (
@@ -157,18 +184,10 @@ export default function IndicesPage() {
     return null;
   }
 
-  if (loading && indices.length === 0) {
+  if (loading && indices.length === 0 && !hasErrorOccurred) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         Loading indices...
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-red-500">
-        Error loading indices: {error.replace(/I:/g, "")}
       </div>
     );
   }
@@ -178,7 +197,7 @@ export default function IndicesPage() {
       return ticker.substring(2);
     }
     if (ticker.startsWith("I%3A")) {
-      return ticker.substring(4); // Remove "I%3A"
+      return ticker.substring(4);
     }
     return ticker;
   };
@@ -223,11 +242,20 @@ export default function IndicesPage() {
         })}
       </div>
       {loadingMore && <div className="text-center py-4">Loading more...</div>}
-      {!loadingMore && !nextCursor && indices.length > 0 && (
-        <div className="text-center py-4 text-gray-500">End of list.</div>
-      )}
-      {indices.length === 0 && !loading && !error && (
-        <p>No indices found matching your criteria.</p>
+      {!loadingMore &&
+        !nextCursor &&
+        indices.length > 0 &&
+        !hasErrorOccurred && (
+          <div className="text-center py-4 text-gray-500">End of list.</div>
+        )}
+      {indices.length === 0 &&
+        !loading &&
+        !loadingMore &&
+        !hasErrorOccurred && <p>No indices found matching your criteria.</p>}
+      {hasErrorOccurred && !loading && !loadingMore && (
+        <p className="text-center py-4 text-red-500">
+          An error occurred. Please try searching again or refresh.
+        </p>
       )}
     </div>
   );

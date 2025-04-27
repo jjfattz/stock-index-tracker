@@ -7,6 +7,7 @@ import { CandlestickData, Time } from "lightweight-charts";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { createAlert } from "@/lib/apiClient";
+import { useToast } from "@/context/ToastContext";
 
 interface AggregateData {
   o: number;
@@ -27,6 +28,7 @@ export default function IndexDetailPage() {
   const [chartData, setChartData] = useState<CandlestickData<Time>[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hasErrorOccurred, setHasErrorOccurred] = useState(false);
   const [alertThreshold, setAlertThreshold] = useState("");
   const [alertCondition, setAlertCondition] = useState<"above" | "below">(
     "above"
@@ -35,6 +37,7 @@ export default function IndexDetailPage() {
     type: "success" | "error";
     text: string;
   } | null>(null);
+  const { addToast } = useToast();
 
   const parseTicker = (tickerStr: string | undefined) => {
     if (!tickerStr) return "";
@@ -59,7 +62,7 @@ export default function IndexDetailPage() {
       setLoading(false);
       return;
     }
-    if (user) {
+    if (user && !hasErrorOccurred) {
       const fetchAggregateData = async () => {
         setLoading(true);
         setError(null);
@@ -93,7 +96,9 @@ export default function IndexDetailPage() {
             close: agg.c,
           }));
           setChartData(formattedData);
+          setHasErrorOccurred(false);
         } catch (err: unknown) {
+          setHasErrorOccurred(true);
           if (err instanceof Error) {
             setError(err.message);
           } else {
@@ -106,15 +111,22 @@ export default function IndexDetailPage() {
       };
 
       fetchAggregateData();
-    } else if (!authLoading) {
+    } else if (!authLoading && !user) {
+    } else if (!loading && !user) {
       setLoading(false);
     }
-  }, [ticker, user, authLoading]);
+  }, [ticker, user, authLoading, hasErrorOccurred]);
 
-  if (authLoading || loading) {
+  useEffect(() => {
+    if (error) {
+      addToast(error.replace(/I:|I%3A/g, ""), "error");
+    }
+  }, [error, addToast]);
+
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        Loading chart data for {parseTicker(ticker)}...
+        Authenticating...
       </div>
     );
   }
@@ -123,16 +135,10 @@ export default function IndexDetailPage() {
     return null;
   }
 
-  if (error) {
+  if (loading && chartData.length === 0 && !hasErrorOccurred) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center text-red-500">
-        <p className="mb-4">
-          Error loading chart data for {parseTicker(ticker)}:{" "}
-          {error.replace(/I:|I%3A/g, "")}
-        </p>
-        <Link href="/indices">
-          <span className="text-blue-500 hover:underline">Back to Indices</span>
-        </Link>
+      <div className="min-h-screen flex items-center justify-center">
+        Loading chart data for {parseTicker(ticker)}...
       </div>
     );
   }
@@ -146,13 +152,25 @@ export default function IndexDetailPage() {
           </span>
         </Link>
       </div>
-      {chartData.length > 0 ? (
-        <ChartComponent data={chartData} ticker={parseTicker(ticker)} />
-      ) : (
-        <p>No chart data available for {parseTicker(ticker)}.</p>
+      {hasErrorOccurred && (
+        <div className="mb-4 p-4 border border-red-500 bg-red-100 text-red-700 rounded">
+          Error loading chart data:{" "}
+          {error?.replace(/I:|I%3A/g, "") || "Unknown error"}
+          <button
+            onClick={() => setHasErrorOccurred(false)}
+            className="ml-4 text-blue-500 underline"
+          >
+            Retry
+          </button>
+        </div>
       )}
+      {chartData.length > 0 && !hasErrorOccurred ? (
+        <ChartComponent data={chartData} ticker={parseTicker(ticker)} />
+      ) : !hasErrorOccurred ? (
+        <p>No chart data available for {parseTicker(ticker)}.</p>
+      ) : null}
 
-      {user && chartData.length > 0 && (
+      {user && chartData.length > 0 && !hasErrorOccurred && (
         <div className="mt-8 p-4 border rounded shadow">
           <h3 className="text-xl font-semibold mb-4">Create Price Alert</h3>
           <form
@@ -230,7 +248,7 @@ export default function IndexDetailPage() {
       return;
     }
 
-    const result = await createAlert(ticker, thresholdValue, alertCondition); // Use original ticker for API call
+    const result = await createAlert(ticker, thresholdValue, alertCondition);
 
     if (result) {
       setAlertMessage({
@@ -241,10 +259,7 @@ export default function IndexDetailPage() {
       });
       setAlertThreshold("");
     } else {
-      setAlertMessage({
-        type: "error",
-        text: "Failed to create alert. Please try again.",
-      });
+      addToast("Failed to create alert. Please try again.", "error");
     }
   }
 }

@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { fetchAlerts, deleteAlert } from "@/lib/apiClient";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useToast } from "@/context/ToastContext";
 
 interface Alert {
   id: string;
@@ -38,6 +39,13 @@ export default function AlertsPage() {
   const [deleteStatus, setDeleteStatus] = useState<{ [key: string]: boolean }>(
     {}
   );
+  const { addToast } = useToast();
+
+  useEffect(() => {
+    if (error) {
+      addToast(`Error loading alerts: ${error}`, "error");
+    }
+  }, [error, addToast]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -71,8 +79,9 @@ export default function AlertsPage() {
       setAlerts((prevAlerts) =>
         prevAlerts.filter((alert) => alert.id !== alertId)
       );
+      addToast(`Alert ${alertId} deleted successfully.`, "success");
     } else {
-      alert(`Failed to delete alert ${alertId}. Please try again.`);
+      addToast(`Failed to delete alert ${alertId}. Please try again.`, "error");
     }
     setDeleteStatus((prev) => ({ ...prev, [alertId]: false }));
   };
@@ -88,14 +97,6 @@ export default function AlertsPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         Loading your alerts...
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-red-500">
-        Error: {error}
       </div>
     );
   }
