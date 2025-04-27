@@ -49,15 +49,21 @@ export default function IndexDetailPage() {
       return;
     }
     if (user) {
-      // Only fetch if user is authenticated
       const fetchAggregateData = async () => {
         setLoading(true);
         setError(null);
         try {
           const response = await fetch(`/api/indices/${ticker}/aggregates`);
           if (!response.ok) {
-            if (response.status === 429) {
-              throw new Error("Rate limit exceeded. Please try again later.");
+            const errorText = await response.text();
+            if (
+              response.status === 403 ||
+              response.status === 429 ||
+              response.status === 503
+            ) {
+              throw new Error(
+                errorText || `HTTP error! status: ${response.status}`
+              );
             }
             throw new Error(`HTTP error! status: ${response.status}`);
           }
@@ -90,10 +96,9 @@ export default function IndexDetailPage() {
 
       fetchAggregateData();
     } else if (!authLoading) {
-      // If not loading and no user, stop loading state for this page
       setLoading(false);
     }
-  }, [ticker, user, authLoading]); // Depend on ticker, user, and authLoading
+  }, [ticker, user, authLoading]);
 
   if (authLoading || loading) {
     return (
@@ -104,7 +109,6 @@ export default function IndexDetailPage() {
   }
 
   if (!user) {
-    // Should be redirected, but render null or a message just in case
     return null;
   }
 

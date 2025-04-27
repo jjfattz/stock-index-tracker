@@ -6,6 +6,7 @@ import {
   ColorType,
   CandlestickData,
   Time,
+  CandlestickSeries,
 } from "lightweight-charts";
 
 interface ChartComponentProps {
@@ -38,13 +39,15 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ data, ticker }) => {
       height: 400,
     });
 
-    const candlestickSeries = (chart as any).addCandlestickSeries({
+    const seriesOptions = {
       upColor: "#26a69a",
       downColor: "#ef5350",
       borderVisible: false,
       wickUpColor: "#26a69a",
       wickDownColor: "#ef5350",
-    });
+    };
+
+    const candlestickSeries = chart.addSeries(CandlestickSeries, seriesOptions);
 
     candlestickSeries.setData(data);
 

@@ -15,7 +15,6 @@ interface ApiResponse {
   next_url: string | null;
 }
 
-// Simple debounce function
 const debounce = <F extends (...args: any[]) => any>(
   func: F,
   waitFor: number
@@ -43,9 +42,8 @@ export default function IndicesPage() {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const observer = useRef<IntersectionObserver | null>(null);
 
-  // Debounce the search term update
   const debouncedSetSearch = useCallback(
-    debounce(setDebouncedSearchTerm, 1000), // Changed delay to 1000ms
+    debounce(setDebouncedSearchTerm, 1000),
     []
   );
 
@@ -70,8 +68,15 @@ export default function IndicesPage() {
     try {
       const response = await fetch(url);
       if (!response.ok) {
-        if (response.status === 429) {
-          throw new Error("Rate limit exceeded. Please try again later.");
+        const errorText = await response.text();
+        if (
+          response.status === 403 ||
+          response.status === 429 ||
+          response.status === 503
+        ) {
+          throw new Error(
+            errorText || `HTTP error! status: ${response.status}`
+          );
         }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -95,7 +100,7 @@ export default function IndicesPage() {
     setLoading(true);
     setError(null);
     setNextCursor(null);
-    setIndices([]); // Clear existing indices on new search/initial load
+    setIndices([]);
     const data = await fetchIndices(null, search);
     if (data) {
       setIndices(data.results);
@@ -108,7 +113,6 @@ export default function IndicesPage() {
     if (!nextCursor || loadingMore || loading) return;
     setLoadingMore(true);
     setError(null);
-    // Pass debounced search term for subsequent loads
     const data = await fetchIndices(nextCursor, debouncedSearchTerm);
     if (data) {
       setIndices((prevIndices) => [...prevIndices, ...data.results]);
@@ -133,7 +137,6 @@ export default function IndicesPage() {
     [loading, loadingMore, nextCursor, loadMoreIndices]
   );
 
-  // Effect for initial load and reacting to debounced search term changes
   useEffect(() => {
     if (!authLoading && user) {
       loadInitialIndices(debouncedSearchTerm);
@@ -151,10 +154,9 @@ export default function IndicesPage() {
   }
 
   if (!user) {
-    return null; // Redirecting
+    return null;
   }
 
-  // Keep initial loading state until first fetch completes, even if empty
   if (loading && indices.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center">

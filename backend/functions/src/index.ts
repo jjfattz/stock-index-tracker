@@ -4,6 +4,7 @@ import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
 import sgMail from "@sendgrid/mail";
 import { onSchedule, ScheduledEvent } from "firebase-functions/v2/scheduler";
+import axios from "axios"; // Import axios
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -49,6 +50,8 @@ if (!polygonApiKey) {
   );
 }
 
+const polygonApiBaseUrl = "https://api.polygon.io";
+
 const app = express();
 app.use(express.json());
 
@@ -67,49 +70,66 @@ app.get("/indices", async (req: express.Request, res: express.Response) => {
   );
 
   try {
-    const { restClient } = await import("@polygon.io/client-js");
-    const polygon = restClient(polygonApiKey);
+    let url: string;
+    const headers = { Authorization: `Bearer ${polygonApiKey}` };
 
-    let response;
     if (cursorUrl) {
-      const rawResponse = await fetch(cursorUrl, {
-        headers: { Authorization: `Bearer ${polygonApiKey}` },
-      });
-      if (!rawResponse.ok) {
-        const errorPayload = {
-          status: rawResponse.status,
-          statusText: rawResponse.statusText,
-        };
-        throw Object.assign(
-          new Error(`Polygon API error fetching next page`),
-          errorPayload
-        );
-      }
-      response = await rawResponse.json();
+      // Use the next_url directly if provided
+      url = cursorUrl;
     } else {
-      response = await polygon.reference.tickers({
+      // Construct the initial URL
+      const params = new URLSearchParams({
         market: "indices",
         active: "true",
-        limit: 100,
+        limit: "100",
         sort: "ticker",
         order: "asc",
-        search: searchTerm,
       });
+      if (searchTerm) {
+        params.append("search", searchTerm);
+      }
+      url = `${polygonApiBaseUrl}/v3/reference/tickers?${params.toString()}`;
     }
 
+    const response = await axios.get(url, { headers });
+
     res.json({
-      results: response.results || [],
-      next_url: response.next_url || null,
+      results: response.data.results || [],
+      next_url: response.data.next_url || null,
     });
   } catch (error: any) {
     logger.error("Error fetching indices from Polygon:", error);
-    const status = error?.status || error?.response?.status;
+    const status = error.response?.status;
+    const errorMessage =
+      error.response?.data?.message || error.message || "Unknown Polygon Error";
+    const requestId = error.response?.data?.request_id;
+
     if (status === 429) {
       res
         .status(429)
         .send("Polygon API rate limit exceeded. Please try again later.");
+    } else if (status === 403) {
+      res
+        .status(403)
+        .send(
+          `Polygon API Authorization Error: ${errorMessage}${
+            requestId ? ` (Request ID: ${requestId})` : ""
+          }`
+        );
+    } else if (status === 503) {
+      res
+        .status(503)
+        .send(
+          `Polygon API Error: ${errorMessage}${
+            requestId ? ` (Request ID: ${requestId})` : ""
+          }`
+        );
     } else {
-      res.status(500).send("Error fetching stock indices");
+      res
+        .status(500)
+        .send(
+          "An internal server error occurred while fetching stock indices."
+        );
     }
   }
 });
@@ -135,21 +155,13 @@ const getAggregatesHandler: RequestHandler = async (req, res) => {
 
     const formattedTicker = ticker.startsWith("I:") ? ticker : `I:${ticker}`;
 
-    const { restClient } = await import("@polygon.io/client-js");
-    const polygon = restClient(polygonApiKey);
-    const aggregates = await polygon.stocks.aggregates(
-      formattedTicker,
-      1,
-      "day",
-      from,
-      to,
-      {
-        adjusted: "true",
-        sort: "asc",
-      }
-    );
+    const url = `${polygonApiBaseUrl}/v2/aggs/ticker/${formattedTicker}/range/1/day/${from}/${to}`;
+    const params = { adjusted: "true", sort: "asc" };
+    const headers = { Authorization: `Bearer ${polygonApiKey}` };
 
-    if (!aggregates.results) {
+    const response = await axios.get(url, { params, headers });
+
+    if (!response.data.results) {
       logger.warn(
         `No aggregate data found for ${formattedTicker} from ${from} to ${to}`
       );
@@ -157,16 +169,44 @@ const getAggregatesHandler: RequestHandler = async (req, res) => {
       return;
     }
 
-    res.json(aggregates.results);
+    res.json(response.data.results);
   } catch (error: any) {
     logger.error(`Error fetching aggregates for ${ticker}:`, error);
-    const status = error?.status || error?.response?.status;
+    const status = error.response?.status;
+    const errorMessage =
+      error.response?.data?.message || error.message || "Unknown Polygon Error";
+    const requestId = error.response?.data?.request_id;
+
     if (status === 429) {
       res
         .status(429)
-        .send("Polygon API rate limit exceeded. Please try again later.");
+        .send(
+          `Polygon API rate limit exceeded. Please try again later. ${
+            requestId ? ` (Request ID: ${requestId})` : ""
+          }`
+        );
+    } else if (status === 403) {
+      res
+        .status(403)
+        .send(
+          `Data entitlement required. Upgrade Polygon plan for index aggregates. ${
+            requestId ? ` (Request ID: ${requestId})` : ""
+          }`
+        );
+    } else if (status === 503) {
+      res
+        .status(503)
+        .send(
+          `Polygon API Error: ${errorMessage}${
+            requestId ? ` (Request ID: ${requestId})` : ""
+          }`
+        );
     } else {
-      res.status(500).send(`Error fetching aggregate data for ${ticker}`);
+      res
+        .status(500)
+        .send(
+          `An internal server error occurred while fetching aggregate data for ${ticker}.`
+        );
     }
   }
 };
@@ -310,15 +350,19 @@ export const checkPriceAlerts = onSchedule(
           ? ticker
           : `I:${ticker}`;
 
-        const { restClient } = await import("@polygon.io/client-js");
-        const polygon = restClient(polygonApiKey);
-        const quote = await polygon.stocks.lastQuote(formattedTicker);
+        const url = `${polygonApiBaseUrl}/v2/last/trade/${formattedTicker}`; // Using Last Trade endpoint
+        const headers = { Authorization: `Bearer ${polygonApiKey}` };
+        const response = await axios.get(url, { headers });
 
-        if (!quote || !quote.results || !quote.results.p) {
-          logger.warn(`Could not get last quote for ${formattedTicker}`);
+        if (
+          !response.data ||
+          !response.data.results ||
+          !response.data.results.p
+        ) {
+          logger.warn(`Could not get last trade price for ${formattedTicker}`);
           return;
         }
-        const currentPrice = quote.results.p;
+        const currentPrice = response.data.results.p;
 
         logger.info(
           `Checking alert ${alert.id}: ${formattedTicker} - Current Price: ${currentPrice}, Condition: ${condition} ${threshold}`
@@ -360,11 +404,13 @@ export const checkPriceAlerts = onSchedule(
           await db.collection("alerts").doc(alert.id).delete();
           logger.info(`Deleted triggered alert ${alert.id}`);
         }
-      } catch (error) {
+      } catch (error: any) {
         logger.error(
           `Error processing alert ${alert.id} for ticker ${ticker}:`,
           error
         );
+        // Decide if specific error handling (like for 429) is needed here too
+        // For now, just log the error and continue with other alerts
       }
     });
 
