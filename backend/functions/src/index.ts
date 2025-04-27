@@ -68,43 +68,39 @@ interface AuthenticatedRequest extends Request {
 
 const handlePolygonApiError = (error: any, res: Response, context: string) => {
   logger.error(`Error ${context}:`, error);
+
+  let statusCode = 500;
+  let message = `An internal server error occurred while ${context}.`;
+
   if (axios.isAxiosError(error)) {
     const axiosError = error as AxiosError;
     const status = axiosError.response?.status;
-    const errorMessage =
-      (axiosError.response?.data as any)?.message || axiosError.message;
-    const requestId = (axiosError.response?.data as any)?.request_id;
+    const responseData = axiosError.response?.data as any;
+    const responseMessage =
+      responseData?.message || axiosError.message || "Unknown Polygon Error";
 
-    if (status === 429) {
-      res
-        .status(429)
-        .send(
-          `Polygon API rate limit exceeded. Please try again later.${
-            requestId ? ` (Request ID: ${requestId})` : ""
-          }`
-        );
-      return;
-    } else if (status === 403) {
-      res
-        .status(403)
-        .send(
-          `Polygon API Authorization Error: ${errorMessage}${
-            requestId ? ` (Request ID: ${requestId})` : ""
-          }`
-        );
-      return;
-    } else if (status === 503) {
-      res
-        .status(503)
-        .send(
-          `Polygon API Error: ${errorMessage}${
-            requestId ? ` (Request ID: ${requestId})` : ""
-          }`
-        );
-      return;
+    const errorMap: { [key: number]: { status: number; message: string } } = {
+      403: {
+        status: 403,
+        message: `Polygon API Authorization Error: ${responseMessage}`,
+      },
+      429: {
+        status: 429,
+        message: `Polygon API rate limit exceeded. Please try again later.`,
+      },
+      503: {
+        status: 503,
+        message: `Polygon API Error: ${responseMessage}`,
+      },
+    };
+
+    if (status && errorMap[status]) {
+      statusCode = errorMap[status].status;
+      message = errorMap[status].message;
     }
   }
-  res.status(500).send(`An internal server error occurred while ${context}.`);
+
+  res.status(statusCode).send(message);
   return;
 };
 
