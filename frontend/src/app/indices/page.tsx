@@ -223,7 +223,7 @@ export default function IndicesPage() {
             <Link href={`/indices/${index.ticker}`} key={index.ticker}>
               <div
                 ref={isLastElement ? lastIndexElementRef : null}
-                className="block p-4 border rounded shadow hover:bg-gray-100 cursor-pointer"
+                className="block p-4 border rounded shadow hover:bg-gray-100 cursor-pointer h-full"
               >
                 <h2 className="text-xl font-semibold">
                   {parseTicker(index.ticker)}
