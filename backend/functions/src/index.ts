@@ -7,6 +7,7 @@ import express, {
 } from "express";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
+import { FieldValue } from "firebase-admin/firestore";
 import sgMail from "@sendgrid/mail";
 import { onSchedule, ScheduledEvent } from "firebase-functions/v2/scheduler";
 import axios, { AxiosError } from "axios";
@@ -220,22 +221,44 @@ app.post(
       return;
     }
 
+    const numericThreshold = Number(threshold);
+    if (isNaN(numericThreshold)) {
+      res.status(400).send("Invalid threshold value: must be a number.");
+      return;
+    }
+
+    const parseTicker = (tickerStr: string): string => {
+      if (tickerStr.startsWith("I:")) {
+        return tickerStr.substring(2);
+      }
+      if (tickerStr.startsWith("I%3A")) {
+        return tickerStr.substring(4);
+      }
+      return tickerStr;
+    };
+    const cleanedTicker = parseTicker(ticker);
+
     logger.info(
-      `User ${userId} creating alert for ${ticker} ${condition} ${threshold}`
+      `User ${userId} creating alert for ${cleanedTicker} ${condition} ${numericThreshold}`
     );
     try {
       const alertData = {
         userId,
-        ticker,
-        threshold: Number(threshold),
+        ticker: cleanedTicker,
+        threshold: numericThreshold,
         condition,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       };
       const docRef = await db.collection("alerts").add(alertData);
       res.status(201).json({ id: docRef.id, ...alertData });
       return;
-    } catch (error) {
-      logger.error(`Error creating alert for user ${userId}:`, error);
+    } catch (error: any) {
+      logger.error(
+        `Error creating alert for user ${userId}. Code: ${
+          error.code || "N/A"
+        }, Message: ${error.message || "Unknown error"}`,
+        error
+      );
       res.status(500).send("Error creating alert");
       return;
     }
