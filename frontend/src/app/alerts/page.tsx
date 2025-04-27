@@ -19,6 +19,16 @@ interface Alert {
     | any;
 }
 
+const parseTicker = (ticker: string) => {
+  if (ticker.startsWith("I:")) {
+    return ticker.substring(2);
+  }
+  if (ticker.startsWith("I%3A")) {
+    return ticker.substring(4);
+  }
+  return ticker;
+};
+
 export default function AlertsPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -137,7 +147,7 @@ export default function AlertsPage() {
                   <td className="py-3 px-4">
                     <Link href={`/indices/${alert.ticker}`}>
                       <span className="text-blue-600 hover:underline">
-                        {alert.ticker}
+                        {parseTicker(alert.ticker)}
                       </span>
                     </Link>
                   </td>

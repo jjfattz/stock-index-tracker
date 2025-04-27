@@ -168,13 +168,19 @@ export default function IndicesPage() {
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center text-red-500">
-        Error loading indices: {error}
+        Error loading indices: {error.replace(/I:/g, "")}
       </div>
     );
   }
 
   const parseTicker = (ticker: string) => {
-    return ticker.startsWith("I:") ? ticker.substring(2) : ticker;
+    if (ticker.startsWith("I:")) {
+      return ticker.substring(2);
+    }
+    if (ticker.startsWith("I%3A")) {
+      return ticker.substring(4); // Remove "I%3A"
+    }
+    return ticker;
   };
 
   return (

@@ -36,6 +36,17 @@ export default function IndexDetailPage() {
     text: string;
   } | null>(null);
 
+  const parseTicker = (tickerStr: string | undefined) => {
+    if (!tickerStr) return "";
+    if (tickerStr.startsWith("I:")) {
+      return tickerStr.substring(2);
+    }
+    if (tickerStr.startsWith("I%3A")) {
+      return tickerStr.substring(4);
+    }
+    return tickerStr;
+  };
+
   useEffect(() => {
     if (!authLoading && !user) {
       router.push("/login");
@@ -103,7 +114,7 @@ export default function IndexDetailPage() {
   if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        Loading chart data for {ticker}...
+        Loading chart data for {parseTicker(ticker)}...
       </div>
     );
   }
@@ -116,7 +127,8 @@ export default function IndexDetailPage() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center text-red-500">
         <p className="mb-4">
-          Error loading chart data for {ticker}: {error}
+          Error loading chart data for {parseTicker(ticker)}:{" "}
+          {error.replace(/I:|I%3A/g, "")}
         </p>
         <Link href="/indices">
           <span className="text-blue-500 hover:underline">Back to Indices</span>
@@ -135,9 +147,9 @@ export default function IndexDetailPage() {
         </Link>
       </div>
       {chartData.length > 0 ? (
-        <ChartComponent data={chartData} ticker={ticker} />
+        <ChartComponent data={chartData} ticker={parseTicker(ticker)} />
       ) : (
-        <p>No chart data available for {ticker}.</p>
+        <p>No chart data available for {parseTicker(ticker)}.</p>
       )}
 
       {user && chartData.length > 0 && (
@@ -218,12 +230,14 @@ export default function IndexDetailPage() {
       return;
     }
 
-    const result = await createAlert(ticker, thresholdValue, alertCondition);
+    const result = await createAlert(ticker, thresholdValue, alertCondition); // Use original ticker for API call
 
     if (result) {
       setAlertMessage({
         type: "success",
-        text: `Alert created successfully for ${ticker} ${alertCondition} ${thresholdValue}`,
+        text: `Alert created successfully for ${parseTicker(
+          ticker
+        )} ${alertCondition} ${thresholdValue}`,
       });
       setAlertThreshold("");
     } else {
