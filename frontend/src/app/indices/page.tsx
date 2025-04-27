@@ -204,13 +204,6 @@ export default function IndicesPage() {
 
   return (
     <div className="container mx-auto p-4">
-      <div className="mb-4 flex justify-between items-center">
-        <Link href="/">
-          <span className="text-blue-500 hover:underline">
-            &larr; Back to Dashboard
-          </span>
-        </Link>
-      </div>
       <h1 className="text-3xl font-bold mb-4">Stock Indices</h1>
 
       <div className="mb-6">

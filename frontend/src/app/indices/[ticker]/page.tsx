@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import ChartComponent from "@/components/ChartComponent";
 import { CandlestickData, Time } from "lightweight-charts";
-import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { createAlert } from "@/lib/apiClient";
 import { useToast } from "@/context/ToastContext";
@@ -145,13 +144,6 @@ export default function IndexDetailPage() {
 
   return (
     <div className="container mx-auto p-4">
-      <div className="mb-4">
-        <Link href="/indices">
-          <span className="text-blue-500 hover:underline">
-            &larr; Back to Indices
-          </span>
-        </Link>
-      </div>
       {hasErrorOccurred && (
         <div className="mb-4 p-4 border border-red-500 bg-red-100 text-red-700 rounded">
           Error loading chart data:{" "}

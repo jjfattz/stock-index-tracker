@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { fetchAlerts, deleteAlert } from "@/lib/apiClient";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import Link from "next/link"; // Link is still used here for ticker links
 import { useToast } from "@/context/ToastContext";
 
 interface Alert {
@@ -107,13 +107,6 @@ export default function AlertsPage() {
 
   return (
     <div className="container mx-auto p-4">
-      <div className="mb-4">
-        <Link href="/">
-          <span className="text-blue-500 hover:underline">
-            &larr; Back to Dashboard
-          </span>
-        </Link>
-      </div>
       <h1 className="text-3xl font-bold mb-6">My Price Alerts</h1>
       {alerts.length === 0 ? (
         <p>You have no active alerts.</p>
