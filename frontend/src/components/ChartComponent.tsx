@@ -16,14 +16,22 @@ interface ChartComponentProps {
 
 const ChartComponent: React.FC<ChartComponentProps> = ({ data, ticker }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartInstanceRef = useRef<any>(null);
 
   useEffect(() => {
     if (!chartContainerRef.current || data.length === 0) {
       return;
     }
 
+    const calculateHeight = () => Math.round(window.innerHeight * 0.8);
+
     const handleResize = () => {
-      chart.applyOptions({ width: chartContainerRef.current!.clientWidth });
+      if (chartInstanceRef.current && chartContainerRef.current) {
+        chartInstanceRef.current.applyOptions({
+          width: chartContainerRef.current.clientWidth,
+          height: calculateHeight(),
+        });
+      }
     };
 
     const chart = createChart(chartContainerRef.current, {
@@ -36,8 +44,9 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ data, ticker }) => {
         horzLines: { color: "#e1e1e1" },
       },
       width: chartContainerRef.current.clientWidth,
-      height: 400,
+      height: calculateHeight(),
     });
+    chartInstanceRef.current = chart;
 
     const seriesOptions = {
       upColor: "#26a69a",
@@ -57,9 +66,12 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ data, ticker }) => {
 
     return () => {
       window.removeEventListener("resize", handleResize);
-      chart.remove();
+      if (chartInstanceRef.current) {
+        chartInstanceRef.current.remove();
+        chartInstanceRef.current = null;
+      }
     };
-  }, [data, ticker]);
+  }, [data]);
 
   return (
     <div className="w-full">
