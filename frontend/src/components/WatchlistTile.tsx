@@ -96,7 +96,7 @@ const WatchlistTile: React.FC<WatchlistTileProps> = ({
               </div>
               <p className="text-lg font-bold pr-8">{formatPrice(price)}</p>
             </div>
-            <div className="h-20 w-full mt-auto">
+            <div className="h-20 w-full mt-auto overflow-hidden">
               <ChartComponent
                 data={chartData as LineData<Time>[]}
                 chartType="line"
