@@ -1,11 +1,22 @@
 import * as logger from "firebase-functions/logger";
 import Alpaca from "@alpacahq/alpaca-trade-api";
-import * as functions from "firebase-functions";
+import { defineString } from "firebase-functions/params";
 
 let alpaca: Alpaca | null = null;
 
+const alpacaKeyId = defineString("ALPACA_KEY_ID");
+const alpacaSecretKey = defineString("ALPACA_SECRET_KEY");
+
+/**
+ * Custom error class for Stock API related errors.
+ */
 class StockApiError extends Error {
   status: number;
+  /**
+   * Creates an instance of StockApiError.
+   * @param {string} message The error message.
+   * @param {number} status The HTTP status code associated with the error.
+   */
   constructor(message: string, status: number) {
     super(message);
     this.name = "StockApiError";
@@ -36,13 +47,14 @@ const INDEX_ETFS = [
 
 const getAlpacaClient = (): Alpaca => {
   if (!alpaca) {
-    const keyId = functions.config().alpaca?.key_id;
-    const secretKey = functions.config().alpaca?.secret_key;
+    const keyId = alpacaKeyId.value();
+    const secretKey = alpacaSecretKey.value();
 
     if (!keyId || !secretKey) {
       const errorMsg =
-        "Stock API keys not configured. Ensure Firebase config is set " +
-        "and emulator restarted if needed.";
+        "Alpaca API keys not configured via environment variables " +
+        "(ALPACA_KEY_ID, ALPACA_SECRET_KEY). " +
+        "Set them in .env files (e.g., .env.stock-index-tracker-jjfattz).";
       logger.error(errorMsg);
       throw new Error(errorMsg);
     }

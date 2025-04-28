@@ -5,35 +5,30 @@ import * as admin from "firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import sgMail from "@sendgrid/mail";
 import { onSchedule, ScheduledEvent } from "firebase-functions/v2/scheduler";
+import { defineString } from "firebase-functions/params";
 import * as stockApi from "./services/stockApi";
+
+const sendgridApiKey = defineString("SENDGRID_API_KEY");
+const sendgridSender = defineString("SENDGRID_SENDER");
 
 admin.initializeApp();
 const db = admin.firestore();
-
-const sendgridApiKey = functions.config().sendgrid?.key;
-const sendgridSender = functions.config().sendgrid?.sender;
-
-if (!sendgridApiKey || !sendgridSender) {
-  logger.error(
-    "SendGrid API key or sender email not configured. " +
-      "Run 'firebase functions:config:set sendgrid.key=...' and " +
-      "'firebase functions:config:set sendgrid.sender=...'"
-  );
-} else {
-  sgMail.setApiKey(sendgridApiKey);
-}
 
 const authenticate = async (
   req: express.Request,
   res: express.Response,
   next: NextFunction
 ) => {
+  logger.info(
+    `Authenticate middleware for ${req.path}. Token found: ${!!req.headers.authorization}`
+  );
   const idToken = req.headers.authorization?.split("Bearer ")[1];
   if (!idToken) {
     res.status(401).send("Unauthorized: No token provided");
     return;
   }
   try {
+    logger.info("Attempting token verification...");
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     (req as AuthenticatedRequest).user = decodedToken;
 
@@ -54,7 +49,7 @@ const authenticate = async (
     }
 
     next();
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error("Error verifying Firebase ID token:", error);
     res.status(401).send("Unauthorized: Invalid token");
     return;
@@ -68,12 +63,13 @@ interface AuthenticatedRequest extends Request {
 const app = express();
 app.use(express.json());
 
-app.get("/", (req: Request, res: Response) => {
+// Add /api prefix to all routes
+app.get("/api/", (req: Request, res: Response) => {
   logger.info("API root accessed");
   res.send("Stock Index Tracker API");
 });
 
-app.get("/indices", async (req: Request, res: Response) => {
+app.get("/api/indices", async (req: Request, res: Response) => {
   logger.info("Fetching predefined list of index ETFs.");
 
   try {
@@ -99,7 +95,7 @@ app.get("/indices", async (req: Request, res: Response) => {
   }
 });
 
-app.get("/indices/:ticker/details", async (req: Request, res: Response) => {
+app.get("/api/indices/:ticker/details", async (req: Request, res: Response) => {
   const { ticker } = req.params;
   logger.info(`Fetching details for index: ${ticker}`);
 
@@ -130,56 +126,59 @@ app.get("/indices/:ticker/details", async (req: Request, res: Response) => {
   }
 });
 
-app.get("/indices/:ticker/aggregates", async (req: Request, res: Response) => {
-  const { ticker } = req.params;
-  logger.info(`Fetching daily aggregates for index: ${ticker}`);
+app.get(
+  "/api/indices/:ticker/aggregates",
+  async (req: Request, res: Response) => {
+    const { ticker } = req.params;
+    logger.info(`Fetching daily aggregates for index: ${ticker}`);
 
-  if (!ticker) {
-    res.status(400).send("Ticker parameter is required");
-    return;
-  }
-
-  try {
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(today.getDate() - 1);
-    const yearAgo = new Date(today);
-    yearAgo.setDate(today.getDate() - 365);
-
-    const to = yesterday.toISOString().split("T")[0];
-    const from = yearAgo.toISOString().split("T")[0];
-
-    const results = await stockApi.getIndexAggregates(ticker, from, to);
-
-    if (!results || results.length === 0) {
-      logger.warn(
-        `No aggregate data found for ${ticker} from ${from} to ${to}`
-      );
-      res.json([]);
+    if (!ticker) {
+      res.status(400).send("Ticker parameter is required");
       return;
     }
-    res.json(results);
-    return;
-  } catch (error: unknown) {
-    const err = error as { status?: number; message?: string };
-    if (err.status && err.message) {
-      logger.error(
-        `Stock API Error fetching aggregate data for ${ticker}: ` +
-          `Status ${err.status}, Message: ${err.message}`
-      );
-      res.status(err.status).send(err.message);
-    } else {
-      logger.error(`Error fetching aggregate data for ${ticker}:`, error);
-      res
-        .status(500)
-        .send(err.message || `Error fetching aggregate data for ${ticker}`);
+
+    try {
+      const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(today.getDate() - 1);
+      const yearAgo = new Date(today);
+      yearAgo.setDate(today.getDate() - 365);
+
+      const to = yesterday.toISOString().split("T")[0];
+      const from = yearAgo.toISOString().split("T")[0];
+
+      const results = await stockApi.getIndexAggregates(ticker, from, to);
+
+      if (!results || results.length === 0) {
+        logger.warn(
+          `No aggregate data found for ${ticker} from ${from} to ${to}`
+        );
+        res.json([]);
+        return;
+      }
+      res.json(results);
+      return;
+    } catch (error: unknown) {
+      const err = error as { status?: number; message?: string };
+      if (err.status && err.message) {
+        logger.error(
+          `Stock API Error fetching aggregate data for ${ticker}: ` +
+            `Status ${err.status}, Message: ${err.message}`
+        );
+        res.status(err.status).send(err.message);
+      } else {
+        logger.error(`Error fetching aggregate data for ${ticker}:`, error);
+        res
+          .status(500)
+          .send(err.message || `Error fetching aggregate data for ${ticker}`);
+      }
+      return;
     }
-    return;
   }
-});
+);
 
 app.post(
-  "/alerts",
+  "/api/alerts",
   authenticate,
   async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user?.uid;
@@ -198,7 +197,8 @@ app.post(
       res
         .status(400)
         .send(
-          "Missing or invalid alert parameters (ticker, threshold, condition: 'above'|'below')"
+          "Missing or invalid alert parameters " +
+            "(ticker, threshold, condition: 'above'|'below')"
         );
       return;
     }
@@ -238,7 +238,7 @@ app.post(
 );
 
 app.get(
-  "/alerts",
+  "/api/alerts",
   authenticate,
   async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user?.uid;
@@ -269,7 +269,7 @@ app.get(
 );
 
 app.delete(
-  "/alerts/:alertId",
+  "/api/alerts/:alertId",
   authenticate,
   async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user?.uid;
@@ -308,7 +308,7 @@ app.delete(
 );
 
 app.get(
-  "/dashboard/watchlist",
+  "/api/dashboard/watchlist",
   authenticate,
   async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user?.uid;
@@ -357,7 +357,8 @@ app.get(
             price: price,
             aggregates: aggregates,
           };
-        } catch (error: any) {
+        } catch (error: unknown) {
+          const err = error as { message?: string };
           logger.error(
             `Error fetching data for ticker ${ticker} in watchlist for user ${userId}:`,
             error
@@ -368,7 +369,7 @@ app.get(
             name: "Error loading data",
             price: null,
             aggregates: [],
-            error: error.message || "Failed to load data",
+            error: err.message || "Failed to load data",
           };
         }
       });
@@ -385,7 +386,7 @@ app.get(
 );
 
 app.get(
-  "/watchlist",
+  "/api/watchlist",
   authenticate,
   async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user?.uid;
@@ -410,7 +411,7 @@ app.get(
 );
 
 app.post(
-  "/watchlist/:ticker",
+  "/api/watchlist/:ticker",
   authenticate,
   async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user?.uid;
@@ -464,7 +465,7 @@ app.post(
 );
 
 app.delete(
-  "/watchlist/:ticker",
+  "/api/watchlist/:ticker",
   authenticate,
   async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user?.uid;
@@ -484,7 +485,8 @@ app.delete(
 
     try {
       logger.info(
-        `Attempting to remove ticker ${ticker} for user ${userId}. Current watchlist state (before update):`,
+        `Attempting to remove ticker ${ticker} for user ${userId}. ` +
+          `Current watchlist state (before update):`,
         (await userRef.get()).data()?.watchlist
       );
 
@@ -493,7 +495,8 @@ app.delete(
       });
 
       logger.info(
-        `Successfully executed update command for removing ${ticker}. Current watchlist state (after update attempt):`,
+        `Successfully executed update command for removing ${ticker}. ` +
+          `Current watchlist state (after update attempt):`,
         (await userRef.get()).data()?.watchlist
       );
 
@@ -517,9 +520,16 @@ export const checkPriceAlerts = onSchedule(
   async (_event: ScheduledEvent) => {
     logger.info("Running scheduled check for price alerts");
 
-    if (!sendgridApiKey || !sendgridSender) {
-      logger.error("SendGrid not configured, skipping alert check.");
+    const sgKey = sendgridApiKey.value();
+    const sgSender = sendgridSender.value();
+
+    if (!sgKey || !sgSender) {
+      logger.error(
+        "SendGrid API key or sender not available from environment. Skipping alert check."
+      );
       return;
+    } else {
+      sgMail.setApiKey(sgKey);
     }
 
     const alertsSnapshot = await db.collection("alerts").get();
@@ -544,7 +554,8 @@ export const checkPriceAlerts = onSchedule(
         }
 
         logger.info(
-          `Checking alert ${alertId}: ${ticker} - Current Price: ${currentPrice}, Condition: ${condition} ${threshold}`
+          `Checking alert ${alertId}: ${ticker} - Current Price: ${currentPrice}, ` +
+            `Condition: ${condition} ${threshold}`
         );
 
         const conditionMet =
@@ -567,9 +578,12 @@ export const checkPriceAlerts = onSchedule(
 
           const msg = {
             to: userEmail,
-            from: sendgridSender,
+            from: sgSender,
             subject: `Price Alert Triggered for ${ticker}`,
-            text: `Your price alert for ${ticker} has been triggered.\nCondition: Price ${condition} ${threshold}\nCurrent Price: ${currentPrice}`,
+            text:
+              `Your price alert for ${ticker} has been triggered.\n` +
+              `Condition: Price ${condition} ${threshold}\n` +
+              `Current Price: ${currentPrice}`,
             html:
               `<strong>Your price alert for ${ticker} has been triggered.` +
               `</strong><br>Condition: Price ${condition} ${threshold}` +
