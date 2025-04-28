@@ -169,10 +169,10 @@ const getAggregatesHandler: RequestHandler = async (req, res) => {
 
   try {
     const today = new Date();
-    const sixtyDaysAgo = new Date();
-    sixtyDaysAgo.setDate(today.getDate() - 60);
+    const yearAgo = new Date();
+    yearAgo.setDate(today.getDate() - 365);
     const to = today.toISOString().split("T")[0];
-    const from = sixtyDaysAgo.toISOString().split("T")[0];
+    const from = yearAgo.toISOString().split("T")[0];
     const formattedTicker = ticker.startsWith("I:") ? ticker : `I:${ticker}`;
 
     const url = `/v2/aggs/ticker/${formattedTicker}/range/1/day/${from}/${to}`;
