@@ -72,8 +72,8 @@ const ChartComponent: React.FC<ChartComponentProps> = ({
         textColor: "#333",
       },
       grid: {
-        vertLines: { color: "#e1e1e1", visible: showLegend },
-        horzLines: { color: "#e1e1e1", visible: showLegend },
+        vertLines: { visible: false },
+        horzLines: { visible: false },
       },
       width: chartContainerRef.current.clientWidth,
       height: chartHeight,
