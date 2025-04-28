@@ -6,5 +6,10 @@ service cloud.firestore {
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
       allow read, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
+
+    match /users/{userId} {
+      allow read, update, create: if request.auth != null && request.auth.uid == userId;
+      allow delete: if false;
+    }
   }
 }

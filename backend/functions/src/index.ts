@@ -34,6 +34,23 @@ const authenticate = async (
   try {
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     (req as any).user = decodedToken;
+
+    const userRef = db.collection("users").doc(decodedToken.uid);
+    const userDoc = await userRef.get();
+    if (!userDoc.exists) {
+      logger.info(
+        `User document for ${decodedToken.uid} not found. Creating one.`
+      );
+      await userRef.set(
+        {
+          email: decodedToken.email,
+          createdAt: FieldValue.serverTimestamp(),
+          watchlist: ["SPY", "QQQ", "DIA"],
+        },
+        { merge: true }
+      );
+    }
+
     next();
   } catch (error) {
     logger.error("Error verifying Firebase ID token:", error);
@@ -358,9 +375,6 @@ app.get(
   }
 );
 
-// --- Watchlist Endpoints ---
-
-// Get user's watchlist
 app.get(
   "/watchlist",
   authenticate,
@@ -386,7 +400,6 @@ app.get(
   }
 );
 
-// Add ticker to watchlist
 app.post(
   "/watchlist/:ticker",
   authenticate,
@@ -413,7 +426,7 @@ app.post(
         const watchlist = userData?.watchlist || [];
 
         if (watchlist.includes(ticker)) {
-          res.status(409).send("Ticker already in watchlist."); // Conflict
+          res.status(409).send("Ticker already in watchlist.");
           return;
         }
 
@@ -441,7 +454,6 @@ app.post(
   }
 );
 
-// Remove ticker from watchlist
 app.delete(
   "/watchlist/:ticker",
   authenticate,
@@ -462,9 +474,20 @@ app.delete(
     const userRef = db.collection("users").doc(userId);
 
     try {
+      logger.info(
+        `Attempting to remove ticker ${ticker} for user ${userId}. Current watchlist state (before update):`,
+        (await userRef.get()).data()?.watchlist
+      );
+
       await userRef.update({
         watchlist: FieldValue.arrayRemove(ticker),
       });
+
+      logger.info(
+        `Successfully executed update command for removing ${ticker}. Current watchlist state (after update attempt):`,
+        (await userRef.get()).data()?.watchlist
+      );
+
       res.status(200).send(`Ticker ${ticker} removed from watchlist.`);
       return;
     } catch (error) {

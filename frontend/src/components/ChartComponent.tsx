@@ -14,6 +14,7 @@ import {
   LineSeries,
   LineWidth,
 } from "lightweight-charts";
+import { Button } from "@/components/ui/button";
 
 interface ChartComponentProps {
   data: CandlestickData<Time>[] | LineData<Time>[];
@@ -23,6 +24,12 @@ interface ChartComponentProps {
   showLegend?: boolean;
   ticker?: string;
   indexName?: string | null;
+  isUserLoggedIn?: boolean;
+  isWatchlisted?: boolean;
+  watchlistLoading?: boolean;
+  watchlistCount?: number;
+  onAddToWatchlist?: () => void;
+  onRemoveFromWatchlist?: () => void;
 }
 
 const ChartComponent: React.FC<ChartComponentProps> = ({
@@ -33,6 +40,12 @@ const ChartComponent: React.FC<ChartComponentProps> = ({
   showLegend = true,
   ticker,
   indexName,
+  isUserLoggedIn = false,
+  isWatchlisted = false,
+  watchlistLoading = false,
+  watchlistCount = 0,
+  onAddToWatchlist = () => {},
+  onRemoveFromWatchlist = () => {},
 }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartInstanceRef = useRef<any>(null);
@@ -129,11 +142,46 @@ const ChartComponent: React.FC<ChartComponentProps> = ({
 
   return (
     <div className="w-full h-full">
-      {showLegend && ticker && (
-        <h2 className="text-2xl font-semibold">{ticker} - Daily Chart</h2>
-      )}
-      {showLegend && indexName && (
-        <h3 className="text-lg text-gray-600 mb-4">{indexName}</h3>
+      {showLegend && (
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            {ticker && (
+              <h2 className="text-2xl font-semibold">{ticker} - Daily Chart</h2>
+            )}
+            {indexName && (
+              <h3 className="text-lg text-gray-600">{indexName}</h3>
+            )}
+          </div>
+          {isUserLoggedIn && ticker && (
+            <div>
+              {watchlistLoading ? (
+                <Button variant="secondary" disabled>
+                  Loading...
+                </Button>
+              ) : isWatchlisted ? (
+                <Button
+                  onClick={onRemoveFromWatchlist}
+                  variant="destructive"
+                  className="cursor-pointer px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded"
+                >
+                  Remove from Watch List
+                </Button>
+              ) : (watchlistCount ?? 0) < 6 ? (
+                <Button
+                  onClick={onAddToWatchlist}
+                  variant="default"
+                  className="cursor-pointer px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded"
+                >
+                  Add to Watch List
+                </Button>
+              ) : (
+                <Button variant="secondary" disabled>
+                  Watchlist Full (Max 6)
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
       )}
       <div
         ref={chartContainerRef}

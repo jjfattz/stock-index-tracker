@@ -5,7 +5,12 @@ import { useParams, useRouter } from "next/navigation";
 import ChartComponent from "@/components/ChartComponent";
 import { CandlestickData, Time } from "lightweight-charts";
 import { useAuth } from "@/context/AuthContext";
-import { createAlert } from "@/lib/apiClient";
+import {
+  createAlert,
+  fetchWatchlist,
+  addToWatchlist,
+  removeFromWatchlist,
+} from "@/lib/apiClient";
 import { useToast } from "@/context/ToastContext";
 
 interface AggregateData {
@@ -38,6 +43,9 @@ export default function IndexDetailPage() {
     text: string;
   } | null>(null);
   const { addToast } = useToast();
+  const [watchlist, setWatchlist] = useState<string[]>([]);
+  const [isWatchlisted, setIsWatchlisted] = useState(false);
+  const [watchlistLoading, setWatchlistLoading] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -133,13 +141,64 @@ export default function IndexDetailPage() {
     } else if (!loading && !user) {
       setLoading(false);
     }
-  }, [ticker, user, authLoading, hasErrorOccurred]);
+
+    const loadWatchlist = async () => {
+      if (user && ticker) {
+        setWatchlistLoading(true);
+        try {
+          const fetchedWatchlist = await fetchWatchlist();
+          const currentWatchlist = fetchedWatchlist || [];
+          setWatchlist(currentWatchlist);
+          setIsWatchlisted(currentWatchlist.includes(ticker));
+        } catch (err) {
+          console.error("Failed to fetch watchlist:", err);
+          addToast("Failed to load watchlist.", "error");
+          setIsWatchlisted(false);
+        } finally {
+          setWatchlistLoading(false);
+        }
+      } else {
+        setIsWatchlisted(false);
+        setWatchlist([]);
+        setWatchlistLoading(false);
+      }
+    };
+    loadWatchlist();
+  }, [ticker, user, authLoading, hasErrorOccurred, addToast]);
 
   useEffect(() => {
     if (error) {
       addToast(error, "error");
     }
   }, [error, addToast]);
+
+  const handleAddWatchlist = async () => {
+    if (!ticker || !user) return;
+    setWatchlistLoading(true);
+    const success = await addToWatchlist(ticker);
+    if (success) {
+      setWatchlist((prev) => [...prev, ticker]);
+      setIsWatchlisted(true);
+      addToast(`${ticker} added to watchlist.`, "success");
+    } else {
+      addToast(`Failed to add ${ticker} to watchlist.`, "error");
+    }
+    setWatchlistLoading(false);
+  };
+
+  const handleRemoveWatchlist = async () => {
+    if (!ticker || !user) return;
+    setWatchlistLoading(true);
+    const success = await removeFromWatchlist(ticker);
+    if (success) {
+      setWatchlist((prev) => prev.filter((t) => t !== ticker));
+      setIsWatchlisted(false);
+      addToast(`${ticker} removed from watchlist.`, "success");
+    } else {
+      addToast(`Failed to remove ${ticker} from watchlist.`, "error");
+    }
+    setWatchlistLoading(false);
+  };
 
   if (authLoading) {
     return (
@@ -179,8 +238,14 @@ export default function IndexDetailPage() {
           data={chartData}
           ticker={ticker}
           indexName={indexName}
+          isUserLoggedIn={!!user && !authLoading}
+          isWatchlisted={isWatchlisted}
+          watchlistLoading={watchlistLoading}
+          watchlistCount={watchlist.length}
+          onAddToWatchlist={handleAddWatchlist}
+          onRemoveFromWatchlist={handleRemoveWatchlist}
         />
-      ) : !hasErrorOccurred ? (
+      ) : !hasErrorOccurred && !loading ? (
         <p>No chart data available for {ticker}.</p>
       ) : null}
 
