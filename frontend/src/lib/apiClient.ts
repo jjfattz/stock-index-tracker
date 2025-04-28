@@ -34,6 +34,80 @@ export const fetchAlerts = async () => {
   }
 };
 
+export const fetchWatchlist = async () => {
+  const token = await getAuthToken();
+  if (!token) return [];
+
+  try {
+    const response = await fetch(`/api/watchlist`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching watchlist:", error);
+    return [];
+  }
+};
+
+export const addToWatchlist = async (ticker: string) => {
+  const token = await getAuthToken();
+  if (!token) return false;
+
+  try {
+    const response = await fetch(`/api/watchlist/${ticker}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(
+        `Error adding to watchlist: ${response.status} - ${errorText}`
+      );
+      throw new Error(
+        `HTTP error! status: ${response.status}, message: ${errorText}`
+      );
+    }
+    return true;
+  } catch (error) {
+    console.error(`Error adding ${ticker} to watchlist:`, error);
+    return false;
+  }
+};
+
+export const removeFromWatchlist = async (ticker: string) => {
+  const token = await getAuthToken();
+  if (!token) return false;
+
+  try {
+    const response = await fetch(`/api/watchlist/${ticker}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(
+        `Error removing from watchlist: ${response.status} - ${errorText}`
+      );
+      throw new Error(
+        `HTTP error! status: ${response.status}, message: ${errorText}`
+      );
+    }
+    return true;
+  } catch (error) {
+    console.error(`Error removing ${ticker} from watchlist:`, error);
+    return false;
+  }
+};
+
 export const createAlert = async (
   ticker: string,
   threshold: number,
