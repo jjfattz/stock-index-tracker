@@ -75,9 +75,7 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ data, ticker }) => {
 
   return (
     <div className="w-full">
-      <h2 className="text-2xl font-semibold mb-4">
-        {ticker} - Daily Chart (60 Days)
-      </h2>
+      <h2 className="text-2xl font-semibold mb-4">{ticker} - Daily Chart</h2>
       <div ref={chartContainerRef} className="border rounded shadow" />
     </div>
   );
