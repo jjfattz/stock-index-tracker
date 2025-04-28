@@ -89,7 +89,7 @@ export default function Navbar() {
                     : "hover:text-gray-300"
                 }`}
               >
-                Track an Index
+                Track Indexes
               </Link>
               <Link
                 href="/alerts"
@@ -192,7 +192,7 @@ export default function Navbar() {
                 }`}
                 onClick={() => setIsMenuOpen(false)}
               >
-                Track an Index
+                Track Indexes
               </Link>
               <Link
                 href="/alerts"
