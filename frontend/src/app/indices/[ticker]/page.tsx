@@ -25,6 +25,7 @@ export default function IndexDetailPage() {
   const ticker = params?.ticker as string;
   const { user, loading: authLoading } = useAuth();
   const [chartData, setChartData] = useState<CandlestickData<Time>[]>([]);
+  const [indexName, setIndexName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasErrorOccurred, setHasErrorOccurred] = useState(false);
@@ -98,7 +99,36 @@ export default function IndexDetailPage() {
         }
       };
 
+      const fetchIndexDetails = async () => {
+        try {
+          const response = await fetch(`/api/indices/${ticker}/details`);
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(
+              errorText ||
+                `HTTP error fetching details! status: ${response.status}`
+            );
+          }
+          const details = await response.json();
+          setIndexName(details.name);
+        } catch (err: unknown) {
+          if (err instanceof Error) {
+            setError((prev) =>
+              prev ? `${prev}; ${err.message}` : err.message
+            );
+          } else {
+            setError((prev) =>
+              prev
+                ? `${prev}; An unexpected error occurred while fetching index details.`
+                : "An unexpected error occurred while fetching index details."
+            );
+          }
+          console.error(`Error fetching details for ${ticker}:`, err);
+        }
+      };
+
       fetchAggregateData();
+      fetchIndexDetails();
     } else if (!authLoading && !user) {
     } else if (!loading && !user) {
       setLoading(false);
@@ -145,7 +175,11 @@ export default function IndexDetailPage() {
         </div>
       )}
       {chartData.length > 0 && !hasErrorOccurred ? (
-        <ChartComponent data={chartData} ticker={ticker} />
+        <ChartComponent
+          data={chartData}
+          ticker={ticker}
+          indexName={indexName}
+        />
       ) : !hasErrorOccurred ? (
         <p>No chart data available for {ticker}.</p>
       ) : null}

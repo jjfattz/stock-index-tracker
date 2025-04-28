@@ -12,9 +12,14 @@ import {
 interface ChartComponentProps {
   data: CandlestickData<Time>[];
   ticker: string;
+  indexName: string | null;
 }
 
-const ChartComponent: React.FC<ChartComponentProps> = ({ data, ticker }) => {
+const ChartComponent: React.FC<ChartComponentProps> = ({
+  data,
+  ticker,
+  indexName,
+}) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartInstanceRef = useRef<any>(null);
 
@@ -75,7 +80,8 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ data, ticker }) => {
 
   return (
     <div className="w-full">
-      <h2 className="text-2xl font-semibold mb-4">{ticker} - Daily Chart</h2>
+      <h2 className="text-2xl font-semibold">{ticker} - Daily Chart</h2>
+      {indexName && <h3 className="text-lg text-gray-600 mb-4">{indexName}</h3>}
       <div ref={chartContainerRef} className="border rounded shadow" />
     </div>
   );
