@@ -11,51 +11,49 @@ import { User, onAuthStateChanged } from "firebase/auth";
 import {
   auth as firebaseAuthService,
   initializeFirebase,
-} from "../lib/firebase"; // Rename import
+} from "../lib/firebase";
 
 interface AuthContextType {
   user: User | null;
-  loading: boolean; // This will now represent only the auth state loading
-  firebaseInitialized: boolean; // New state to track Firebase init
+  loading: boolean;
+  firebaseInitialized: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
-  firebaseInitialized: false, // Default to false
+  firebaseInitialized: false,
 });
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true); // Auth state loading
+  const [loading, setLoading] = useState(true);
   const [firebaseInitialized, setFirebaseInitialized] = useState(false);
 
   useEffect(() => {
     let unsubscribe: (() => void) | null = null;
 
     initializeFirebase().then((app) => {
-      setFirebaseInitialized(true); // Mark Firebase as initialized (or attempted)
+      setFirebaseInitialized(true);
       if (app && firebaseAuthService) {
-        // Use the imported service name
         unsubscribe = onAuthStateChanged(firebaseAuthService, (user) => {
           setUser(user);
-          setLoading(false); // Auth state is now determined
+          setLoading(false);
         });
       } else {
         console.error("Firebase auth failed to initialize for AuthProvider.");
-        setLoading(false); // Stop loading even if init failed
+        setLoading(false);
       }
     });
 
-    // Cleanup function
     return () => {
       if (unsubscribe) {
         unsubscribe();
       }
     };
-  }, []); // Empty dependency array ensures this runs once on mount
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, loading, firebaseInitialized }}>

@@ -63,7 +63,6 @@ interface AuthenticatedRequest extends Request {
 const app = express();
 app.use(express.json());
 
-// Add /api prefix to all routes
 app.get("/api/", (req: Request, res: Response) => {
   logger.info("API root accessed");
   res.send("Stock Index Tracker API");

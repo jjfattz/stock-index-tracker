@@ -35,7 +35,7 @@ const initializeFirebase = async (): Promise<FirebaseApp | null> => {
 
   initializationPromise = (async () => {
     let firebaseConfig: FirebaseConfig = {};
-    let configSource = "environment"; // Track where config came from
+    let configSource = "environment";
 
     try {
       const response = await fetch("/__/firebase/init.json");
@@ -44,7 +44,7 @@ const initializeFirebase = async (): Promise<FirebaseApp | null> => {
         configSource = "hosting";
         console.log("Fetched Firebase config from Hosting.");
       } else {
-        throw new Error("Fetch not ok"); // Trigger fallback
+        throw new Error("Fetch not ok");
       }
     } catch (e) {
       console.warn(
@@ -65,7 +65,7 @@ const initializeFirebase = async (): Promise<FirebaseApp | null> => {
       console.error(
         `Firebase config is missing apiKey (source: ${configSource}). Initialization failed.`
       );
-      initializationPromise = null; // Reset promise on failure
+      initializationPromise = null;
       return null;
     }
 
@@ -95,10 +95,10 @@ const initializeFirebase = async (): Promise<FirebaseApp | null> => {
       return app;
     } catch (initError) {
       console.error("Error during Firebase initialization:", initError);
-      app = null; // Ensure app is null on error
+      app = null;
       auth = null;
       db = null;
-      initializationPromise = null; // Reset promise on failure
+      initializationPromise = null;
       return null;
     }
   })();
@@ -106,5 +106,4 @@ const initializeFirebase = async (): Promise<FirebaseApp | null> => {
   return initializationPromise;
 };
 
-// Export the promise itself, and the potentially null services
 export { app, auth, db, initializeFirebase };

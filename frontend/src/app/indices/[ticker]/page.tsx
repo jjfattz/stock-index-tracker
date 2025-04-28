@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation"; // Add useRouter back
+import { useParams, useRouter } from "next/navigation";
 import ChartComponent from "@/components/ChartComponent";
 import { CandlestickData, Time } from "lightweight-charts";
 import { useAuth } from "@/context/AuthContext";
@@ -13,7 +13,6 @@ import {
 } from "@/lib/apiClient";
 import { useToast } from "@/context/ToastContext";
 import { Button } from "@/components/ui/button";
-// Removed ProtectedRoute import
 
 interface AggregateData {
   o: number;
@@ -29,10 +28,10 @@ interface AggregateData {
 export default function IndexDetailPage() {
   const params = useParams();
   const ticker = params?.ticker as string;
-  const { user, loading: authLoading, firebaseInitialized } = useAuth(); // Use all context values
+  const { user, loading: authLoading, firebaseInitialized } = useAuth();
   const [chartData, setChartData] = useState<CandlestickData<Time>[]>([]);
   const [indexName, setIndexName] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true); // Local data loading state
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasErrorOccurred, setHasErrorOccurred] = useState(false);
   const [alertThreshold, setAlertThreshold] = useState("");
@@ -47,23 +46,20 @@ export default function IndexDetailPage() {
   const [watchlist, setWatchlist] = useState<string[]>([]);
   const [isWatchlisted, setIsWatchlisted] = useState(false);
   const [watchlistLoading, setWatchlistLoading] = useState(false);
-  const router = useRouter(); // Add router back
+  const router = useRouter();
 
   useEffect(() => {
-    // Redirect if initialization and auth check are done, but no user
     if (firebaseInitialized && !authLoading && !user) {
       router.push("/login");
     }
   }, [firebaseInitialized, authLoading, user, router]);
 
   useEffect(() => {
-    // Data fetching logic
     if (!ticker) {
       setError("Ticker not found in URL.");
       setLoading(false);
       return;
     }
-    // Fetch only if user exists and no prior error
     if (user && !hasErrorOccurred) {
       const fetchAggregateData = async () => {
         setLoading(true);
@@ -165,7 +161,6 @@ export default function IndexDetailPage() {
         setWatchlistLoading(false);
       }
     };
-    // Fetch watchlist only if user exists
     if (user) {
       loadWatchlist();
     }
@@ -205,7 +200,6 @@ export default function IndexDetailPage() {
     setWatchlistLoading(false);
   };
 
-  // Re-introduce loading/auth checks directly in the page
   if (!firebaseInitialized || authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -214,12 +208,10 @@ export default function IndexDetailPage() {
     );
   }
 
-  // If initialization and auth check are done, but no user, render null (redirect handled by useEffect)
   if (!user) {
     return null;
   }
 
-  // Show local loading state only if auth is done, user exists, and data is loading
   if (loading && chartData.length === 0 && !hasErrorOccurred) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -228,9 +220,7 @@ export default function IndexDetailPage() {
     );
   }
 
-  // Render actual content if user exists and data is loaded/error occurred
   return (
-    // Removed ProtectedRoute wrapper
     <div className="container mx-auto p-4">
       {hasErrorOccurred && (
         <div className="mb-4 p-4 border border-destructive bg-destructive/10 text-destructive-foreground rounded flex justify-between items-center">

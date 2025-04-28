@@ -7,16 +7,8 @@ let alpaca: Alpaca | null = null;
 const alpacaKeyId = defineString("ALPACA_KEY_ID");
 const alpacaSecretKey = defineString("ALPACA_SECRET_KEY");
 
-/**
- * Custom error class for Stock API related errors.
- */
 class StockApiError extends Error {
   status: number;
-  /**
-   * Creates an instance of StockApiError.
-   * @param {string} message The error message.
-   * @param {number} status The HTTP status code associated with the error.
-   */
   constructor(message: string, status: number) {
     super(message);
     this.name = "StockApiError";
