@@ -23,7 +23,7 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ data, ticker }) => {
       return;
     }
 
-    const calculateHeight = () => Math.round(window.innerHeight * 0.8);
+    const calculateHeight = () => Math.round(window.innerHeight * 0.6);
 
     const handleResize = () => {
       if (chartInstanceRef.current && chartContainerRef.current) {
