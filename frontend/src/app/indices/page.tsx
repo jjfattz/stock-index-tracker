@@ -223,12 +223,28 @@ export default function IndicesPage() {
             <Link href={`/indices/${index.ticker}`} key={index.ticker}>
               <div
                 ref={isLastElement ? lastIndexElementRef : null}
-                className="block p-4 border rounded shadow hover:bg-gray-100 cursor-pointer h-full"
+                className="flex items-center justify-between p-4 border rounded shadow hover:bg-gray-100 cursor-pointer h-full"
               >
-                <h2 className="text-xl font-semibold">
-                  {parseTicker(index.ticker)}
-                </h2>
-                <p className="text-gray-600">{index.name}</p>
+                <div>
+                  <h2 className="text-xl font-semibold">
+                    {parseTicker(index.ticker)}
+                  </h2>
+                  <p className="text-gray-600">{index.name}</p>
+                </div>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
+                  className="w-6 h-6 text-gray-400"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="m8.25 4.5 7.5 7.5-7.5 7.5"
+                  />
+                </svg>
               </div>
             </Link>
           );
