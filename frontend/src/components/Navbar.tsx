@@ -48,7 +48,7 @@ export default function Navbar() {
     <nav className="bg-gray-800 text-white p-4 shadow-md">
       <div className="container mx-auto flex justify-between items-center">
         <Link href="/" className="text-xl font-bold hover:text-gray-300">
-          Stock Index Tracker
+          Stock <span className="text-blue-500">Index</span> Tracker
         </Link>
         <div className="md:hidden">
           <button onClick={() => setIsMenuOpen(!isMenuOpen)}>

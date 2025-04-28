@@ -43,7 +43,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
       <div className="bg-card border border-border p-8 rounded-lg shadow-md w-full max-w-md text-white">
         <h1 className="text-4xl font-bold mb-4 text-center">
-          Stock Index Tracker
+          Stock <span className="text-blue-500">Index</span> Tracker
         </h1>
         <h2 className="text-2xl font-semibold mb-6 text-center">Login</h2>
         <form onSubmit={handleLogin}>
@@ -83,7 +83,7 @@ export default function LoginPage() {
             <p className="text-destructive text-xs italic mb-4">{error}</p>
           )}
           <div className="flex items-center justify-between">
-            <Button type="submit" variant="outline">
+            <Button type="submit" variant="outline" className="cursor-pointer">
               Sign In
             </Button>
             <Link
