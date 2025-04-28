@@ -6,6 +6,16 @@ import { fetchAlerts, deleteAlert } from "@/lib/apiClient";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useToast } from "@/context/ToastContext";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Alert {
   id: string;
@@ -93,10 +103,50 @@ export default function AlertsPage() {
     return "N/A";
   };
 
-  if (authLoading || loading) {
+  if (!user) {
+    return null;
+  }
+
+  const renderSkeletonRows = () => {
+    return Array.from({ length: 5 }).map((_, index) => (
+      <TableRow key={`skeleton-alert-${index}`}>
+        <TableCell>
+          <Skeleton className="h-4 w-16" />
+        </TableCell>
+        <TableCell>
+          <Skeleton className="h-4 w-24" />
+        </TableCell>
+        <TableCell>
+          <Skeleton className="h-4 w-12" />
+        </TableCell>
+        <TableCell>
+          <Skeleton className="h-4 w-20" />
+        </TableCell>
+        <TableCell>
+          <Skeleton className="h-8 w-16" />
+        </TableCell>
+      </TableRow>
+    ));
+  };
+
+  if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        Loading your alerts...
+      <div className="container mx-auto p-4">
+        <h1 className="text-3xl font-bold mb-6">My Price Alerts</h1>
+        <div className="border rounded-lg">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Ticker</TableHead>
+                <TableHead>Condition</TableHead>
+                <TableHead>Threshold</TableHead>
+                <TableHead>Created At</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>{renderSkeletonRows()}</TableBody>
+          </Table>
+        </div>
       </div>
     );
   }
@@ -108,69 +158,62 @@ export default function AlertsPage() {
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-3xl font-bold mb-6">My Price Alerts</h1>
-      {alerts.length === 0 ? (
-        <p>You have no active alerts.</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full bg-white border">
-            <thead>
-              <tr className="w-full bg-gray-100 border-b">
-                <th className="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-700">
-                  Ticker
-                </th>
-                <th className="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-700">
-                  Condition
-                </th>
-                <th className="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-700">
-                  Threshold
-                </th>
-                <th className="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-700">
-                  Created At
-                </th>
-                <th className="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-700">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {alerts.map((alert) => (
-                <tr
-                  key={alert.id}
-                  className="text-gray-700 border-b hover:bg-gray-50"
+      <div className="border rounded-lg">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Ticker</TableHead>
+              <TableHead>Condition</TableHead>
+              <TableHead>Threshold</TableHead>
+              <TableHead>Created At</TableHead>
+              <TableHead>Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              renderSkeletonRows()
+            ) : alerts.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={5}
+                  className="text-center text-muted-foreground h-24"
                 >
-                  <td className="py-3 px-4">
-                    <Link href={`/indices/${alert.ticker}`}>
-                      <span className="text-blue-600 hover:underline">
-                        {parseTicker(alert.ticker)}
-                      </span>
+                  You have no active alerts.
+                </TableCell>
+              </TableRow>
+            ) : (
+              alerts.map((alert) => (
+                <TableRow key={alert.id}>
+                  <TableCell className="font-medium">
+                    <Link
+                      href={`/indices/${alert.ticker}`}
+                      className="hover:underline hover:text-primary"
+                    >
+                      {parseTicker(alert.ticker)}
                     </Link>
-                  </td>
-                  <td className="py-3 px-4">
+                  </TableCell>
+                  <TableCell>
                     {alert.condition === "above" ? "Above" : "Below"}
-                  </td>
-                  <td className="py-3 px-4">{alert.threshold}</td>
-                  <td className="py-3 px-4">
-                    {formatTimestamp(alert.createdAt)}
-                  </td>
-                  <td className="py-3 px-4">
-                    <button
+                  </TableCell>
+                  <TableCell>{alert.threshold}</TableCell>
+                  <TableCell>{formatTimestamp(alert.createdAt)}</TableCell>
+                  <TableCell>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="border border-white cursor-pointer"
                       onClick={() => handleDelete(alert.id)}
                       disabled={deleteStatus[alert.id]}
-                      className={`bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded text-xs focus:outline-none focus:shadow-outline cursor-pointer ${
-                        deleteStatus[alert.id]
-                          ? "opacity-50 cursor-not-allowed"
-                          : ""
-                      }`}
                     >
                       {deleteStatus[alert.id] ? "Deleting..." : "Delete"}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }
