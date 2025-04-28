@@ -7,13 +7,21 @@ import { sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useToast } from "@/context/ToastContext";
 import { Button } from "@/components/ui/button";
+import { initializeFirebase } from "@/lib/firebase"; // Import initializeFirebase
+import { useEffect } from "react"; // Import useEffect
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
+  const [firebaseInitialized, setFirebaseInitialized] = useState(false); // Add state
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const { addToast } = useToast();
+
+  // Ensure Firebase is initialized before allowing attempts
+  useEffect(() => {
+    initializeFirebase().then(() => setFirebaseInitialized(true));
+  }, []);
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,6 +30,14 @@ export default function ForgotPasswordPage() {
 
     if (!email) {
       addToast("Please enter your email address.", "error");
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!firebaseInitialized || !auth) {
+      // Check both flags
+      addToast("Password reset failed: Auth service not ready.", "error");
+      console.error("Password reset failed: Auth service not initialized.");
       setIsSubmitting(false);
       return;
     }
@@ -83,7 +99,7 @@ export default function ForgotPasswordPage() {
               type="submit"
               variant="outline"
               className="cursor-pointer w-full"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !firebaseInitialized} // Disable button until initialized
             >
               {isSubmitting ? "Sending..." : "Reset My Password"}
             </Button>

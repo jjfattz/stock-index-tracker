@@ -1,13 +1,19 @@
 import { auth } from "./firebase";
 
 const getAuthToken = async (): Promise<string | null> => {
+  if (!auth) {
+    console.error("Auth service is not initialized yet.");
+    return null;
+  }
   const currentUser = auth.currentUser;
   if (!currentUser) {
-    console.error("No user logged in");
+    console.log("getAuthToken: No current user found.");
     return null;
   }
   try {
-    return await currentUser.getIdToken();
+    const token = await currentUser.getIdToken();
+    console.log("getAuthToken: Successfully retrieved token.");
+    return token;
   } catch (error) {
     console.error("Error getting auth token:", error);
     return null;

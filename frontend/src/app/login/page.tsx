@@ -7,17 +7,32 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useToast } from "@/context/ToastContext";
 import { Button } from "@/components/ui/button";
+import { initializeFirebase } from "@/lib/firebase"; // Import initializeFirebase
+import { useEffect } from "react"; // Import useEffect
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
+  const [firebaseInitialized, setFirebaseInitialized] = useState(false); // Add state
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const { addToast } = useToast();
 
+  // Ensure Firebase is initialized before allowing login attempts
+  useEffect(() => {
+    initializeFirebase().then(() => setFirebaseInitialized(true));
+  }, []);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (!firebaseInitialized || !auth) {
+      // Check both flags
+      setError("Authentication service is not ready. Please try again.");
+      return;
+    }
+
     try {
       const userCredential = await signInWithEmailAndPassword(
         auth,
@@ -91,7 +106,14 @@ export default function LoginPage() {
             <p className="text-destructive text-xs italic mb-4">{error}</p>
           )}
           <div className="flex items-center justify-between">
-            <Button type="submit" variant="outline" className="cursor-pointer">
+            <Button
+              type="submit"
+              variant="outline"
+              className="cursor-pointer"
+              disabled={!firebaseInitialized}
+            >
+              {" "}
+              {/* Disable button until initialized */}
               Sign In
             </Button>
             <Link

@@ -6,13 +6,21 @@ import Link from "next/link";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
+import { initializeFirebase } from "@/lib/firebase"; // Import initializeFirebase
+import { useEffect } from "react"; // Import useEffect
 
 export default function SignupPage() {
   const [email, setEmail] = useState("");
+  const [firebaseInitialized, setFirebaseInitialized] = useState(false); // Add state
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+
+  // Ensure Firebase is initialized before allowing signup attempts
+  useEffect(() => {
+    initializeFirebase().then(() => setFirebaseInitialized(true));
+  }, []);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,6 +29,13 @@ export default function SignupPage() {
       setError("Passwords do not match");
       return;
     }
+
+    if (!firebaseInitialized || !auth) {
+      // Check both flags
+      setError("Authentication service is not ready. Please try again.");
+      return;
+    }
+
     try {
       await createUserWithEmailAndPassword(auth, email, password);
       router.push("/");
@@ -93,7 +108,14 @@ export default function SignupPage() {
             <p className="text-destructive text-xs italic mb-4">{error}</p>
           )}
           <div className="flex items-center justify-between">
-            <Button type="submit" variant="outline" className="cursor-pointer">
+            <Button
+              type="submit"
+              variant="outline"
+              className="cursor-pointer"
+              disabled={!firebaseInitialized}
+            >
+              {" "}
+              {/* Disable button until initialized */}
               Sign Up
             </Button>
             <Link

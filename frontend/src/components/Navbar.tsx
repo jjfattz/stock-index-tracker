@@ -18,6 +18,11 @@ export default function Navbar() {
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
   const handleLogout = async () => {
+    if (!auth) {
+      addToast("Logout failed: Auth service not ready.", "error");
+      console.error("Logout failed: Auth service not initialized.");
+      return;
+    }
     try {
       await signOut(auth);
       addToast("Logged out successfully.", "success");
