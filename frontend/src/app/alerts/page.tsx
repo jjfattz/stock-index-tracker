@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { fetchAlerts, deleteAlert } from "@/lib/apiClient";
 import { useRouter } from "next/navigation";
-import Link from "next/link"; // Link is still used here for ticker links
+import Link from "next/link";
 import { useToast } from "@/context/ToastContext";
 
 interface Alert {
@@ -115,19 +115,19 @@ export default function AlertsPage() {
           <table className="min-w-full bg-white border">
             <thead>
               <tr className="w-full bg-gray-100 border-b">
-                <th className="text-left py-3 px-4 uppercase font-semibold text-sm">
+                <th className="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-700">
                   Ticker
                 </th>
-                <th className="text-left py-3 px-4 uppercase font-semibold text-sm">
+                <th className="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-700">
                   Condition
                 </th>
-                <th className="text-left py-3 px-4 uppercase font-semibold text-sm">
+                <th className="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-700">
                   Threshold
                 </th>
-                <th className="text-left py-3 px-4 uppercase font-semibold text-sm">
+                <th className="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-700">
                   Created At
                 </th>
-                <th className="text-left py-3 px-4 uppercase font-semibold text-sm">
+                <th className="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-700">
                   Actions
                 </th>
               </tr>
