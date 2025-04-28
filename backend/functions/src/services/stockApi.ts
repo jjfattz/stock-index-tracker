@@ -170,20 +170,20 @@ export const getIndexAggregates = async (
   }
 };
 
-export const getLastTradePrice = async (ticker: string) => {
-  logger.info(`Fetching last trade price for ${ticker}`);
+export const getLatestQuotePrice = async (ticker: string) => {
+  logger.info(`Fetching latest quote price for ${ticker}`);
   try {
     const client = getAlpacaClient();
-    const latestTrade = await client.getLatestTrade(ticker);
-    if (!latestTrade?.Price) {
-      logger.warn(`Could not get last trade price for ${ticker}`);
+    const latestQuote = await client.getLatestQuote(ticker);
+    if (!latestQuote?.AskPrice) {
+      logger.warn(`Could not get latest quote price for ${ticker}`);
       return null;
     }
-    return latestTrade.Price;
+    return latestQuote.AskPrice;
   } catch (error) {
     const { status, message } = handleStockApiError(
       error,
-      `fetching last trade price for ${ticker}`
+      `fetching latest quote price for ${ticker}`
     );
     throw { status, message };
   }

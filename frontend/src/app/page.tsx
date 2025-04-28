@@ -3,6 +3,7 @@
 import React from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
+import Watchlist from "@/components/Watchlist";
 
 export default function Home() {
   const { user, loading } = useAuth();
@@ -15,7 +16,6 @@ export default function Home() {
   }, [user, loading, router]);
 
   if (loading || !user) {
-    // Show loading or redirect will happen
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-24">
         Loading...
@@ -24,8 +24,8 @@ export default function Home() {
   }
 
   return (
-    <div>
-      <p>Dashboard Page (Content TBD)</p>
+    <div className="container mx-auto p-4 md:p-6 lg:p-8">
+      <Watchlist />
     </div>
   );
 }

@@ -5,18 +5,32 @@ import {
   createChart,
   ColorType,
   CandlestickData,
+  LineData,
   Time,
+  LineStyle,
+  CrosshairMode,
+  IChartApi,
   CandlestickSeries,
+  LineSeries,
+  LineWidth,
 } from "lightweight-charts";
 
 interface ChartComponentProps {
-  data: CandlestickData<Time>[];
-  ticker: string;
-  indexName: string | null;
+  data: CandlestickData<Time>[] | LineData<Time>[];
+  chartType?: "candlestick" | "line";
+  height?: number;
+  showTooltip?: boolean;
+  showLegend?: boolean;
+  ticker?: string;
+  indexName?: string | null;
 }
 
 const ChartComponent: React.FC<ChartComponentProps> = ({
   data,
+  chartType = "candlestick",
+  height,
+  showTooltip = true,
+  showLegend = true,
   ticker,
   indexName,
 }) => {
@@ -28,61 +42,103 @@ const ChartComponent: React.FC<ChartComponentProps> = ({
       return;
     }
 
-    const calculateHeight = () => Math.round(window.innerHeight * 0.6);
+    const chartHeight = height ?? Math.round(window.innerHeight * 0.6);
 
     const handleResize = () => {
       if (chartInstanceRef.current && chartContainerRef.current) {
         chartInstanceRef.current.applyOptions({
           width: chartContainerRef.current.clientWidth,
-          height: calculateHeight(),
+          height: chartHeight,
         });
       }
     };
 
-    const chart = createChart(chartContainerRef.current, {
+    const chartOptions = {
       layout: {
-        background: { type: ColorType.Solid, color: "#ffffff" },
+        background: { type: ColorType.Solid, color: "transparent" },
         textColor: "#333",
       },
       grid: {
-        vertLines: { color: "#e1e1e1" },
-        horzLines: { color: "#e1e1e1" },
+        vertLines: { color: "#e1e1e1", visible: showLegend },
+        horzLines: { color: "#e1e1e1", visible: showLegend },
       },
       width: chartContainerRef.current.clientWidth,
-      height: calculateHeight(),
-    });
-    chartInstanceRef.current = chart;
-
-    const seriesOptions = {
-      upColor: "#26a69a",
-      downColor: "#ef5350",
-      borderVisible: false,
-      wickUpColor: "#26a69a",
-      wickDownColor: "#ef5350",
+      height: chartHeight,
+      timeScale: {
+        visible: showLegend,
+        borderVisible: showLegend,
+      },
+      rightPriceScale: {
+        visible: showLegend,
+        borderVisible: showLegend,
+      },
+      crosshair: {
+        mode: showTooltip ? CrosshairMode.Normal : CrosshairMode.Hidden,
+      },
+      handleScroll: showLegend,
+      handleScale: showLegend,
     };
 
-    const candlestickSeries = chart.addSeries(CandlestickSeries, seriesOptions);
+    const chart: IChartApi = createChart(
+      chartContainerRef.current,
+      chartOptions
+    );
+    chartInstanceRef.current = chart;
 
-    candlestickSeries.setData(data);
+    if (chartType === "candlestick") {
+      const seriesOptions = {
+        upColor: "#26a69a",
+        downColor: "#ef5350",
+        borderVisible: false,
+        wickUpColor: "#26a69a",
+        wickDownColor: "#ef5350",
+      };
+      const candlestickSeries = chart.addSeries(
+        CandlestickSeries,
+        seriesOptions
+      );
+      candlestickSeries.setData(data as CandlestickData<Time>[]);
+    } else if (chartType === "line") {
+      const seriesOptions = {
+        color: "#2962FF",
+        lineWidth: 2 as LineWidth,
+        lineStyle: LineStyle.Solid,
+        lastValueVisible: false,
+        priceLineVisible: false,
+      };
+      const lineSeries = chart.addSeries(LineSeries, seriesOptions);
+      lineSeries.setData(data as LineData<Time>[]);
+    }
 
     chart.timeScale().fitContent();
 
-    window.addEventListener("resize", handleResize);
+    if (height === undefined) {
+      window.addEventListener("resize", handleResize);
+    }
 
     return () => {
-      window.removeEventListener("resize", handleResize);
+      if (height === undefined) {
+        window.removeEventListener("resize", handleResize);
+      }
       if (chartInstanceRef.current) {
         chartInstanceRef.current.remove();
         chartInstanceRef.current = null;
       }
     };
-  }, [data]);
+  }, [data, chartType, height, showTooltip, showLegend]);
 
   return (
-    <div className="w-full">
-      <h2 className="text-2xl font-semibold">{ticker} - Daily Chart</h2>
-      {indexName && <h3 className="text-lg text-gray-600 mb-4">{indexName}</h3>}
-      <div ref={chartContainerRef} className="border rounded shadow" />
+    <div className="w-full h-full">
+      {showLegend && ticker && (
+        <h2 className="text-2xl font-semibold">{ticker} - Daily Chart</h2>
+      )}
+      {showLegend && indexName && (
+        <h3 className="text-lg text-gray-600 mb-4">{indexName}</h3>
+      )}
+      <div
+        ref={chartContainerRef}
+        className={`w-full h-full ${showLegend ? "border rounded shadow" : ""}`}
+      />
     </div>
   );
 };

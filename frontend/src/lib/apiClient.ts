@@ -84,3 +84,28 @@ export const deleteAlert = async (alertId: string) => {
     return false;
   }
 };
+
+export const fetchWatchlistData = async (tickers?: string[]) => {
+  const token = await getAuthToken();
+  if (!token) return [];
+
+  let url = "/api/dashboard/watchlist";
+  if (tickers && tickers.length > 0) {
+    url += `?tickers=${tickers.join(",")}`;
+  }
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching watchlist data:", error);
+    return [];
+  }
+};

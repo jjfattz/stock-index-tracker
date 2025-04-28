@@ -309,16 +309,19 @@ app.get(
 
     try {
       const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(today.getDate() - 1);
       const sevenDaysAgo = new Date(today);
-      sevenDaysAgo.setDate(today.getDate() - 7);
-      const to = today.toISOString().split("T")[0];
+      sevenDaysAgo.setDate(today.getDate() - 8);
+
+      const to = yesterday.toISOString().split("T")[0];
       const from = sevenDaysAgo.toISOString().split("T")[0];
 
       const watchlistDataPromises = tickers.map(async (ticker) => {
         try {
           const [details, price, aggregates] = await Promise.all([
             stockApi.getIndexDetails(ticker),
-            stockApi.getLastTradePrice(ticker),
+            stockApi.getLatestQuotePrice(ticker),
             stockApi.getIndexAggregates(ticker, from, to),
           ]);
 
@@ -379,7 +382,7 @@ export const checkPriceAlerts = onSchedule(
       const { ticker, threshold, condition, userId } = alert;
 
       try {
-        const currentPrice = await stockApi.getLastTradePrice(ticker);
+        const currentPrice = await stockApi.getLatestQuotePrice(ticker);
 
         if (currentPrice === null) {
           logger.warn(
