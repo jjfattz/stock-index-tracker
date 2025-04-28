@@ -212,7 +212,8 @@ export default function IndicesPage() {
           placeholder="Search indices by ticker or name..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-100 placeholder-gray-500 leading-tight focus:outline-none focus:shadow-outline"
+          autoFocus
         />
       </div>
 
