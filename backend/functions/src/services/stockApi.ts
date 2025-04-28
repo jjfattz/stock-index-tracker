@@ -104,6 +104,34 @@ export const getIndicesList = async () => {
   }
 };
 
+export const getIndexDetails = async (ticker: string) => {
+  logger.info(`Fetching details for index: ${ticker}`);
+  try {
+    const client = getAlpacaClient();
+    const asset = await client.getAsset(ticker);
+    return {
+      ticker: asset.symbol,
+      name: asset.name,
+      market: asset.exchange,
+      locale: "us",
+      primary_exchange: asset.exchange,
+      type: asset.class,
+      active: asset.status === "active",
+      currency_name: "usd",
+      cik: null,
+      composite_figi: null,
+      share_class_figi: null,
+      last_updated_utc: null,
+    };
+  } catch (error) {
+    const { status, message } = handleStockApiError(
+      error,
+      `fetching details for ${ticker}`
+    );
+    throw { status, message };
+  }
+};
+
 export const getIndexAggregates = async (
   ticker: string,
   from: string,

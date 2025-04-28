@@ -58,8 +58,7 @@ app.get("/indices", async (req: Request, res: Response) => {
   logger.info(`Fetching predefined list of index ETFs.`);
 
   try {
-    // Client initialization removed, handled within stockApi service
-    const data = await stockApi.getIndicesList(); // Call without client
+    const data = await stockApi.getIndicesList();
     res.json({
       results: data.results || [],
       next_url: data.next_url,
@@ -74,6 +73,35 @@ app.get("/indices", async (req: Request, res: Response) => {
     } else {
       logger.error("Error fetching indices list:", error);
       res.status(500).send(error.message || "Error fetching indices list");
+    }
+    return;
+  }
+});
+
+app.get("/indices/:ticker/details", async (req: Request, res: Response) => {
+  const { ticker } = req.params;
+  logger.info(`Fetching details for index: ${ticker}`);
+
+  if (!ticker) {
+    res.status(400).send("Ticker parameter is required");
+    return;
+  }
+
+  try {
+    const details = await stockApi.getIndexDetails(ticker);
+    res.json(details);
+    return;
+  } catch (error: any) {
+    if (error.status && error.message) {
+      logger.error(
+        `Stock API Error fetching details for ${ticker}: Status ${error.status}, Message: ${error.message}`
+      );
+      res.status(error.status).send(error.message);
+    } else {
+      logger.error(`Error fetching details for ${ticker}:`, error);
+      res
+        .status(500)
+        .send(error.message || `Error fetching details for ${ticker}`);
     }
     return;
   }
@@ -98,8 +126,7 @@ app.get("/indices/:ticker/aggregates", async (req: Request, res: Response) => {
     const to = yesterday.toISOString().split("T")[0];
     const from = yearAgo.toISOString().split("T")[0];
 
-    // Client initialization removed
-    const results = await stockApi.getIndexAggregates(ticker, from, to); // Call without client
+    const results = await stockApi.getIndexAggregates(ticker, from, to);
 
     if (!results || results.length === 0) {
       logger.warn(
@@ -278,8 +305,7 @@ export const checkPriceAlerts = onSchedule(
       const { ticker, threshold, condition, userId } = alert;
 
       try {
-        // Client initialization removed
-        const currentPrice = await stockApi.getLastTradePrice(ticker); // Call without client
+        const currentPrice = await stockApi.getLastTradePrice(ticker);
 
         if (currentPrice === null) {
           logger.warn(
