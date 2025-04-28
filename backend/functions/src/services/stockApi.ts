@@ -4,6 +4,27 @@ import * as functions from "firebase-functions";
 
 let alpaca: Alpaca | null = null;
 
+const INDEX_ETFS = [
+  "SPY",
+  "QQQ",
+  "DIA",
+  "IWM",
+  "IVV",
+  "VOO",
+  "VTI",
+  "IVW",
+  "XLK",
+  "XLF",
+  "XLV",
+  "XLE",
+  "XLY",
+  "XLP",
+  "XLU",
+  "XLI",
+  "XLB",
+  "XLC",
+];
+
 const getAlpacaClient = (): Alpaca => {
   if (!alpaca) {
     const keyId = functions.config().alpaca?.key_id;
@@ -49,8 +70,6 @@ export const handleStockApiError = (
 
   return { status: statusCode, message: message };
 };
-
-const INDEX_ETFS = ["SPY", "QQQ", "DIA", "IWM"];
 
 export const getIndicesList = async () => {
   logger.info(`Fetching predefined index ETFs: ${INDEX_ETFS.join(", ")}`);
