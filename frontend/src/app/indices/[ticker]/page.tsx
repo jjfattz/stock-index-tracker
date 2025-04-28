@@ -12,6 +12,7 @@ import {
   removeFromWatchlist,
 } from "@/lib/apiClient";
 import { useToast } from "@/context/ToastContext";
+import { Button } from "@/components/ui/button";
 
 interface AggregateData {
   o: number;
@@ -223,14 +224,16 @@ export default function IndexDetailPage() {
   return (
     <div className="container mx-auto p-4">
       {hasErrorOccurred && (
-        <div className="mb-4 p-4 border border-red-500 bg-red-100 text-red-700 rounded">
-          Error loading chart data: {error || "Unknown error"}
-          <button
+        <div className="mb-4 p-4 border border-destructive bg-destructive/10 text-destructive-foreground rounded flex justify-between items-center">
+          <span>Error loading chart data: {error || "Unknown error"}</span>
+          <Button
             onClick={() => setHasErrorOccurred(false)}
-            className="ml-4 text-blue-500 underline"
+            variant="outline"
+            className="border-white cursor-pointer"
+            size="sm"
           >
             Retry
-          </button>
+          </Button>
         </div>
       )}
       {chartData.length > 0 && !hasErrorOccurred ? (
@@ -293,12 +296,13 @@ export default function IndexDetailPage() {
                 placeholder="e.g., 150.50"
               />
             </div>
-            <button
+            <Button
               type="submit"
-              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline h-10"
+              variant="outline"
+              className="border-white cursor-pointer"
             >
               Set Alert
-            </button>
+            </Button>
           </form>
           {alertMessage && (
             <p

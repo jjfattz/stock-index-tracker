@@ -15,6 +15,7 @@ import {
   LineWidth,
 } from "lightweight-charts";
 import { Button } from "@/components/ui/button";
+import { Plus, Trash2 } from "lucide-react";
 
 interface ChartComponentProps {
   data: CandlestickData<Time>[] | LineData<Time>[];
@@ -155,27 +156,27 @@ const ChartComponent: React.FC<ChartComponentProps> = ({
           {isUserLoggedIn && ticker && (
             <div>
               {watchlistLoading ? (
-                <Button variant="secondary" disabled>
+                <Button variant="outline" className="border-white" disabled>
                   Loading...
                 </Button>
               ) : isWatchlisted ? (
                 <Button
                   onClick={onRemoveFromWatchlist}
-                  variant="destructive"
-                  className="cursor-pointer px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded"
+                  variant="outline"
+                  className="border-white cursor-pointer"
                 >
-                  Remove from Watch List
+                  <Trash2 className="mr-2 h-4 w-4" /> Remove from Watch List
                 </Button>
               ) : (watchlistCount ?? 0) < 6 ? (
                 <Button
                   onClick={onAddToWatchlist}
-                  variant="default"
-                  className="cursor-pointer px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded"
+                  variant="outline"
+                  className="border-white cursor-pointer"
                 >
-                  Add to Watch List
+                  <Plus className="mr-2 h-4 w-4" /> Add to Watch List
                 </Button>
               ) : (
-                <Button variant="secondary" disabled>
+                <Button variant="outline" className="border-white" disabled>
                   Watchlist Full (Max 6)
                 </Button>
               )}
