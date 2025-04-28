@@ -4,6 +4,15 @@ import * as functions from "firebase-functions";
 
 let alpaca: Alpaca | null = null;
 
+class StockApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "StockApiError";
+    this.status = status;
+  }
+}
+
 const INDEX_ETFS = [
   "SPY",
   "QQQ",
@@ -31,10 +40,11 @@ const getAlpacaClient = (): Alpaca => {
     const secretKey = functions.config().alpaca?.secret_key;
 
     if (!keyId || !secretKey) {
-      logger.error(
-        "Stock API keys not configured. Ensure Firebase config is set and emulator restarted if needed."
-      );
-      throw new Error("Stock API keys not configured.");
+      const errorMsg =
+        "Stock API keys not configured. Ensure Firebase config is set " +
+        "and emulator restarted if needed.";
+      logger.error(errorMsg);
+      throw new Error(errorMsg);
     }
     alpaca = new Alpaca({
       keyId: keyId,
@@ -45,30 +55,37 @@ const getAlpacaClient = (): Alpaca => {
   return alpaca;
 };
 
+interface AlpacaErrorResponse {
+  response?: {
+    status?: number;
+  };
+  message?: string;
+}
+
 export const handleStockApiError = (
-  error: any,
+  error: unknown,
   context: string
 ): { status: number; message: string } => {
   logger.error(`Stock API Error ${context}:`, error);
   let statusCode = 500;
-  let message = `An internal server error occurred while ${context}.`;
+  let baseMessage = `An internal server error occurred while ${context}.`;
+  const err = error as AlpacaErrorResponse;
+  const errorMessage = err.message || "Unknown Stock API Error";
 
-  if (error.response && error.response.status) {
-    statusCode = error.response.status;
-    message = `Stock API Error (${statusCode}): ${
-      error.message || "Unknown Stock API Error"
-    }`;
-  } else if (error.message) {
-    message = `Stock API Error: ${error.message}`;
+  if (err.response && err.response.status) {
+    statusCode = err.response.status;
+    baseMessage = `Stock API Error (${statusCode}): ${errorMessage}`;
+  } else if (err.message) {
+    baseMessage = `Stock API Error: ${errorMessage}`;
   }
 
   if (statusCode === 401 || statusCode === 403) {
-    message = `Stock API Authorization Error. Check credentials. (${error.message})`;
+    baseMessage = `Stock API Authorization Error. Check credentials. (${errorMessage})`;
   } else if (statusCode === 429) {
-    message = `Stock API rate limit exceeded. Please try again later.`;
+    baseMessage = "Stock API rate limit exceeded. Please try again later.";
   }
 
-  return { status: statusCode, message: message };
+  return { status: statusCode, message: baseMessage };
 };
 
 export const getIndicesList = async () => {
@@ -79,7 +96,7 @@ export const getIndicesList = async () => {
     const assets = await Promise.all(assetPromises);
 
     return {
-      results: assets.map((asset: any) => ({
+      results: assets.map((asset) => ({
         ticker: asset.symbol,
         name: asset.name,
         market: asset.exchange,
@@ -100,7 +117,7 @@ export const getIndicesList = async () => {
       error,
       "fetching predefined index ETFs"
     );
-    throw { status, message };
+    throw new StockApiError(message, status);
   }
 };
 
@@ -128,7 +145,7 @@ export const getIndexDetails = async (ticker: string) => {
       error,
       `fetching details for ${ticker}`
     );
-    throw { status, message };
+    throw new StockApiError(message, status);
   }
 };
 
@@ -166,7 +183,7 @@ export const getIndexAggregates = async (
       error,
       `fetching aggregate data for ${ticker}`
     );
-    throw { status, message };
+    throw new StockApiError(message, status);
   }
 };
 
@@ -185,6 +202,6 @@ export const getLatestQuotePrice = async (ticker: string) => {
       error,
       `fetching latest quote price for ${ticker}`
     );
-    throw { status, message };
+    throw new StockApiError(message, status);
   }
 };

@@ -15,7 +15,9 @@ const sendgridSender = functions.config().sendgrid?.sender;
 
 if (!sendgridApiKey || !sendgridSender) {
   logger.error(
-    "SendGrid API key or sender email not configured. Run 'firebase functions:config:set sendgrid.key=...' and 'firebase functions:config:set sendgrid.sender=...'"
+    "SendGrid API key or sender email not configured. " +
+      "Run 'firebase functions:config:set sendgrid.key=...' and " +
+      "'firebase functions:config:set sendgrid.sender=...'"
   );
 } else {
   sgMail.setApiKey(sendgridApiKey);
@@ -33,7 +35,7 @@ const authenticate = async (
   }
   try {
     const decodedToken = await admin.auth().verifyIdToken(idToken);
-    (req as any).user = decodedToken;
+    (req as AuthenticatedRequest).user = decodedToken;
 
     const userRef = db.collection("users").doc(decodedToken.uid);
     const userDoc = await userRef.get();
@@ -72,7 +74,7 @@ app.get("/", (req: Request, res: Response) => {
 });
 
 app.get("/indices", async (req: Request, res: Response) => {
-  logger.info(`Fetching predefined list of index ETFs.`);
+  logger.info("Fetching predefined list of index ETFs.");
 
   try {
     const data = await stockApi.getIndicesList();
@@ -81,15 +83,17 @@ app.get("/indices", async (req: Request, res: Response) => {
       next_url: data.next_url,
     });
     return;
-  } catch (error: any) {
-    if (error.status && error.message) {
+  } catch (error: unknown) {
+    const err = error as { status?: number; message?: string };
+    if (err.status && err.message) {
       logger.error(
-        `Stock API Error fetching indices list: Status ${error.status}, Message: ${error.message}`
+        `Stock API Error fetching indices list: Status ${err.status}, ` +
+          `Message: ${err.message}`
       );
-      res.status(error.status).send(error.message);
+      res.status(err.status).send(err.message);
     } else {
       logger.error("Error fetching indices list:", error);
-      res.status(500).send(error.message || "Error fetching indices list");
+      res.status(500).send(err.message || "Error fetching indices list");
     }
     return;
   }
@@ -108,17 +112,19 @@ app.get("/indices/:ticker/details", async (req: Request, res: Response) => {
     const details = await stockApi.getIndexDetails(ticker);
     res.json(details);
     return;
-  } catch (error: any) {
-    if (error.status && error.message) {
+  } catch (error: unknown) {
+    const err = error as { status?: number; message?: string };
+    if (err.status && err.message) {
       logger.error(
-        `Stock API Error fetching details for ${ticker}: Status ${error.status}, Message: ${error.message}`
+        `Stock API Error fetching details for ${ticker}: Status ${err.status}, ` +
+          `Message: ${err.message}`
       );
-      res.status(error.status).send(error.message);
+      res.status(err.status).send(err.message);
     } else {
       logger.error(`Error fetching details for ${ticker}:`, error);
       res
         .status(500)
-        .send(error.message || `Error fetching details for ${ticker}`);
+        .send(err.message || `Error fetching details for ${ticker}`);
     }
     return;
   }
@@ -154,17 +160,19 @@ app.get("/indices/:ticker/aggregates", async (req: Request, res: Response) => {
     }
     res.json(results);
     return;
-  } catch (error: any) {
-    if (error.status && error.message) {
+  } catch (error: unknown) {
+    const err = error as { status?: number; message?: string };
+    if (err.status && err.message) {
       logger.error(
-        `Stock API Error fetching aggregate data for ${ticker}: Status ${error.status}, Message: ${error.message}`
+        `Stock API Error fetching aggregate data for ${ticker}: ` +
+          `Status ${err.status}, Message: ${err.message}`
       );
-      res.status(error.status).send(error.message);
+      res.status(err.status).send(err.message);
     } else {
       logger.error(`Error fetching aggregate data for ${ticker}:`, error);
       res
         .status(500)
-        .send(error.message || `Error fetching aggregate data for ${ticker}`);
+        .send(err.message || `Error fetching aggregate data for ${ticker}`);
     }
     return;
   }
@@ -215,11 +223,12 @@ app.post(
       const docRef = await db.collection("alerts").add(alertData);
       res.status(201).json({ id: docRef.id, ...alertData });
       return;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { code?: string; message?: string };
       logger.error(
         `Error creating alert for user ${userId}. Code: ${
-          error.code || "N/A"
-        }, Message: ${error.message || "Unknown error"}`,
+          err.code || "N/A"
+        }, ` + `Message: ${err.message || "Unknown error"}`,
         error
       );
       res.status(500).send("Error creating alert");
@@ -367,7 +376,7 @@ app.get(
       const watchlistData = await Promise.all(watchlistDataPromises);
       res.json(watchlistData);
       return;
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(`Error fetching watchlist data for user ${userId}:`, error);
       res.status(500).send("Error fetching watchlist data");
       return;
@@ -443,7 +452,7 @@ app.post(
         res.status(200).send(`Ticker ${ticker} added to watchlist.`);
       });
       return;
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(
         `Error adding ticker ${ticker} to watchlist for user ${userId}:`,
         error
@@ -505,7 +514,7 @@ export const api = functions.https.onRequest(app);
 
 export const checkPriceAlerts = onSchedule(
   "every 5 minutes",
-  async (event: ScheduledEvent) => {
+  async (_event: ScheduledEvent) => {
     logger.info("Running scheduled check for price alerts");
 
     if (!sendgridApiKey || !sendgridSender) {
@@ -538,7 +547,7 @@ export const checkPriceAlerts = onSchedule(
           `Checking alert ${alertId}: ${ticker} - Current Price: ${currentPrice}, Condition: ${condition} ${threshold}`
         );
 
-        let conditionMet =
+        const conditionMet =
           (condition === "above" && currentPrice > threshold) ||
           (condition === "below" && currentPrice < threshold);
 
@@ -561,7 +570,10 @@ export const checkPriceAlerts = onSchedule(
             from: sendgridSender,
             subject: `Price Alert Triggered for ${ticker}`,
             text: `Your price alert for ${ticker} has been triggered.\nCondition: Price ${condition} ${threshold}\nCurrent Price: ${currentPrice}`,
-            html: `<strong>Your price alert for ${ticker} has been triggered.</strong><br>Condition: Price ${condition} ${threshold}<br>Current Price: ${currentPrice}`,
+            html:
+              `<strong>Your price alert for ${ticker} has been triggered.` +
+              `</strong><br>Condition: Price ${condition} ${threshold}` +
+              `<br>Current Price: ${currentPrice}`,
           };
 
           await sgMail.send(msg);
@@ -572,10 +584,12 @@ export const checkPriceAlerts = onSchedule(
           await db.collection("alerts").doc(alertId).delete();
           logger.info(`Deleted triggered alert ${alertId}`);
         }
-      } catch (error: any) {
-        if (error.status && error.message) {
+      } catch (error: unknown) {
+        const err = error as { status?: number; message?: string };
+        if (err.status && err.message) {
           logger.error(
-            `Stock API Error processing alert ${alertId} for ticker ${ticker}: Status ${error.status}, Message: ${error.message}`
+            `Stock API Error processing alert ${alertId} for ticker ${ticker}: ` +
+              `Status ${err.status}, Message: ${err.message}`
           );
         } else {
           logger.error(
