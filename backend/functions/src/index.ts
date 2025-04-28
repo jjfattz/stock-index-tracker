@@ -358,6 +358,126 @@ app.get(
   }
 );
 
+// --- Watchlist Endpoints ---
+
+// Get user's watchlist
+app.get(
+  "/watchlist",
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response) => {
+    const userId = req.user?.uid;
+    if (!userId) {
+      res.status(401).send("Authentication error.");
+      return;
+    }
+
+    logger.info(`Fetching watchlist for user ${userId}`);
+    try {
+      const userDoc = await db.collection("users").doc(userId).get();
+      const userData = userDoc.data();
+      const watchlist = userData?.watchlist || [];
+      res.json(watchlist);
+      return;
+    } catch (error) {
+      logger.error(`Error fetching watchlist for user ${userId}:`, error);
+      res.status(500).send("Error fetching watchlist");
+      return;
+    }
+  }
+);
+
+// Add ticker to watchlist
+app.post(
+  "/watchlist/:ticker",
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response) => {
+    const userId = req.user?.uid;
+    const { ticker } = req.params;
+
+    if (!userId) {
+      res.status(401).send("Authentication error.");
+      return;
+    }
+    if (!ticker) {
+      res.status(400).send("Ticker parameter is required.");
+      return;
+    }
+
+    logger.info(`User ${userId} adding ticker ${ticker} to watchlist`);
+    const userRef = db.collection("users").doc(userId);
+
+    try {
+      await db.runTransaction(async (transaction) => {
+        const userDoc = await transaction.get(userRef);
+        const userData = userDoc.data();
+        const watchlist = userData?.watchlist || [];
+
+        if (watchlist.includes(ticker)) {
+          res.status(409).send("Ticker already in watchlist."); // Conflict
+          return;
+        }
+
+        if (watchlist.length >= 6) {
+          res.status(400).send("Watchlist limit reached (max 6 tickers).");
+          return;
+        }
+
+        transaction.set(
+          userRef,
+          { watchlist: FieldValue.arrayUnion(ticker) },
+          { merge: true }
+        );
+        res.status(200).send(`Ticker ${ticker} added to watchlist.`);
+      });
+      return;
+    } catch (error) {
+      logger.error(
+        `Error adding ticker ${ticker} to watchlist for user ${userId}:`,
+        error
+      );
+      res.status(500).send("Error adding ticker to watchlist");
+      return;
+    }
+  }
+);
+
+// Remove ticker from watchlist
+app.delete(
+  "/watchlist/:ticker",
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response) => {
+    const userId = req.user?.uid;
+    const { ticker } = req.params;
+
+    if (!userId) {
+      res.status(401).send("Authentication error.");
+      return;
+    }
+    if (!ticker) {
+      res.status(400).send("Ticker parameter is required.");
+      return;
+    }
+
+    logger.info(`User ${userId} removing ticker ${ticker} from watchlist`);
+    const userRef = db.collection("users").doc(userId);
+
+    try {
+      await userRef.update({
+        watchlist: FieldValue.arrayRemove(ticker),
+      });
+      res.status(200).send(`Ticker ${ticker} removed from watchlist.`);
+      return;
+    } catch (error) {
+      logger.error(
+        `Error removing ticker ${ticker} from watchlist for user ${userId}:`,
+        error
+      );
+      res.status(500).send("Error removing ticker from watchlist");
+      return;
+    }
+  }
+);
+
 export const api = functions.https.onRequest(app);
 
 export const checkPriceAlerts = onSchedule(
