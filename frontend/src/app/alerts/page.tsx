@@ -79,9 +79,9 @@ export default function AlertsPage() {
       setAlerts((prevAlerts) =>
         prevAlerts.filter((alert) => alert.id !== alertId)
       );
-      addToast(`Alert ${alertId} deleted successfully.`, "success");
+      addToast(`Alert deleted successfully.`, "success");
     } else {
-      addToast(`Failed to delete alert ${alertId}. Please try again.`, "error");
+      addToast(`Failed to delete alert. Please try again.`, "error");
     }
     setDeleteStatus((prev) => ({ ...prev, [alertId]: false }));
   };
@@ -156,7 +156,7 @@ export default function AlertsPage() {
                     <button
                       onClick={() => handleDelete(alert.id)}
                       disabled={deleteStatus[alert.id]}
-                      className={`bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded text-xs focus:outline-none focus:shadow-outline ${
+                      className={`bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded text-xs focus:outline-none focus:shadow-outline cursor-pointer ${
                         deleteStatus[alert.id]
                           ? "opacity-50 cursor-not-allowed"
                           : ""
