@@ -281,6 +281,80 @@ app.delete(
   }
 );
 
+app.get(
+  "/dashboard/watchlist",
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response) => {
+    const userId = req.user?.uid;
+    if (!userId) {
+      res.status(401).send("Authentication error.");
+      return;
+    }
+
+    const tickers = (req.query.tickers as string)?.split(",") || [
+      "SPY",
+      "QQQ",
+      "DIA",
+    ];
+    logger.info(
+      `User ${userId} fetching watchlist data for tickers: ${tickers.join(
+        ", "
+      )}`
+    );
+
+    if (tickers.length === 0) {
+      res.json([]);
+      return;
+    }
+
+    try {
+      const today = new Date();
+      const sevenDaysAgo = new Date(today);
+      sevenDaysAgo.setDate(today.getDate() - 7);
+      const to = today.toISOString().split("T")[0];
+      const from = sevenDaysAgo.toISOString().split("T")[0];
+
+      const watchlistDataPromises = tickers.map(async (ticker) => {
+        try {
+          const [details, price, aggregates] = await Promise.all([
+            stockApi.getIndexDetails(ticker),
+            stockApi.getLastTradePrice(ticker),
+            stockApi.getIndexAggregates(ticker, from, to),
+          ]);
+
+          return {
+            ticker: details.ticker,
+            name: details.name,
+            price: price,
+            aggregates: aggregates,
+          };
+        } catch (error: any) {
+          logger.error(
+            `Error fetching data for ticker ${ticker} in watchlist for user ${userId}:`,
+            error
+          );
+
+          return {
+            ticker: ticker,
+            name: "Error loading data",
+            price: null,
+            aggregates: [],
+            error: error.message || "Failed to load data",
+          };
+        }
+      });
+
+      const watchlistData = await Promise.all(watchlistDataPromises);
+      res.json(watchlistData);
+      return;
+    } catch (error: any) {
+      logger.error(`Error fetching watchlist data for user ${userId}:`, error);
+      res.status(500).send("Error fetching watchlist data");
+      return;
+    }
+  }
+);
+
 export const api = functions.https.onRequest(app);
 
 export const checkPriceAlerts = onSchedule(
