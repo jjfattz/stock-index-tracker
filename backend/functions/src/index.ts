@@ -504,7 +504,7 @@ app.delete(
 export const api = functions.https.onRequest(app);
 
 export const checkPriceAlerts = onSchedule(
-  "every 24 hours",
+  "every 5 minutes",
   async (event: ScheduledEvent) => {
     logger.info("Running scheduled check for price alerts");
 
