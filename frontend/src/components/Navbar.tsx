@@ -104,7 +104,7 @@ export default function Navbar() {
               <div className="relative" ref={profileMenuRef}>
                 <button
                   onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-                  className="flex items-center justify-center w-8 h-8 bg-gray-600 rounded-full hover:bg-gray-500 focus:outline-none"
+                  className="flex items-center justify-center w-8 h-8 bg-gray-600 rounded-full hover:bg-gray-500 focus:outline-none cursor-pointer"
                 >
                   <svg
                     className="w-5 h-5 text-white"
@@ -133,7 +133,7 @@ export default function Navbar() {
                         handleLogout();
                         setIsProfileMenuOpen(false);
                       }}
-                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
                     >
                       Logout
                     </button>
