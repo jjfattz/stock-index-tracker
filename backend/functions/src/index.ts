@@ -328,11 +328,11 @@ app.get(
       const today = new Date();
       const yesterday = new Date(today);
       yesterday.setDate(today.getDate() - 1);
-      const sevenDaysAgo = new Date(today);
-      sevenDaysAgo.setDate(today.getDate() - 8);
+      const thirtyDaysAgo = new Date(today);
+      thirtyDaysAgo.setDate(today.getDate() - 31);
 
       const to = yesterday.toISOString().split("T")[0];
-      const from = sevenDaysAgo.toISOString().split("T")[0];
+      const from = thirtyDaysAgo.toISOString().split("T")[0];
 
       const watchlistDataPromises = tickers.map(async (ticker) => {
         try {

@@ -48,7 +48,7 @@ const WatchlistTile: React.FC<WatchlistTileProps> = ({
 
   const formatPrice = (value: number | null) => {
     if (value === null || value === undefined) return "N/A";
-    return value.toFixed(2);
+    return `$${value.toFixed(2)}`;
   };
 
   return (
@@ -63,12 +63,19 @@ const WatchlistTile: React.FC<WatchlistTileProps> = ({
           <div className="absolute top-2 right-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 cursor-pointer"
+                >
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => onRemove(ticker)}>
+                <DropdownMenuItem
+                  onClick={() => onRemove(ticker)}
+                  className="cursor-pointer"
+                >
                   Remove from list
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -87,7 +94,7 @@ const WatchlistTile: React.FC<WatchlistTileProps> = ({
                   {name}
                 </p>
               </div>
-              <p className="text-lg font-medium pr-8">{formatPrice(price)}</p>
+              <p className="text-lg font-bold pr-8">{formatPrice(price)}</p>
             </div>
             <div className="h-20 w-full mt-auto">
               <ChartComponent
