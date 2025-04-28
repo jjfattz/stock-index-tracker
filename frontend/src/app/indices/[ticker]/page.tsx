@@ -38,17 +38,6 @@ export default function IndexDetailPage() {
   } | null>(null);
   const { addToast } = useToast();
 
-  const parseTicker = (tickerStr: string | undefined) => {
-    if (!tickerStr) return "";
-    if (tickerStr.startsWith("I:")) {
-      return tickerStr.substring(2);
-    }
-    if (tickerStr.startsWith("I%3A")) {
-      return tickerStr.substring(4);
-    }
-    return tickerStr;
-  };
-
   useEffect(() => {
     if (!authLoading && !user) {
       router.push("/login");
@@ -118,7 +107,7 @@ export default function IndexDetailPage() {
 
   useEffect(() => {
     if (error) {
-      addToast(error.replace(/I:|I%3A/g, ""), "error");
+      addToast(error, "error");
     }
   }, [error, addToast]);
 
@@ -137,7 +126,7 @@ export default function IndexDetailPage() {
   if (loading && chartData.length === 0 && !hasErrorOccurred) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        Loading chart data for {parseTicker(ticker)}...
+        Loading chart data for {ticker}...
       </div>
     );
   }
@@ -146,8 +135,7 @@ export default function IndexDetailPage() {
     <div className="container mx-auto p-4">
       {hasErrorOccurred && (
         <div className="mb-4 p-4 border border-red-500 bg-red-100 text-red-700 rounded">
-          Error loading chart data:{" "}
-          {error?.replace(/I:|I%3A/g, "") || "Unknown error"}
+          Error loading chart data: {error || "Unknown error"}
           <button
             onClick={() => setHasErrorOccurred(false)}
             className="ml-4 text-blue-500 underline"
@@ -157,9 +145,9 @@ export default function IndexDetailPage() {
         </div>
       )}
       {chartData.length > 0 && !hasErrorOccurred ? (
-        <ChartComponent data={chartData} ticker={parseTicker(ticker)} />
+        <ChartComponent data={chartData} ticker={ticker} />
       ) : !hasErrorOccurred ? (
-        <p>No chart data available for {parseTicker(ticker)}.</p>
+        <p>No chart data available for {ticker}.</p>
       ) : null}
 
       {user && chartData.length > 0 && !hasErrorOccurred && (
@@ -245,9 +233,7 @@ export default function IndexDetailPage() {
     if (result) {
       setAlertMessage({
         type: "success",
-        text: `Alert created successfully for ${parseTicker(
-          ticker
-        )} ${alertCondition} ${thresholdValue}`,
+        text: `Alert created successfully for ${ticker} ${alertCondition} ${thresholdValue}`,
       });
       setAlertThreshold("");
     } else {
