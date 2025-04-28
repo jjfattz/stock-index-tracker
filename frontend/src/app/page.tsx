@@ -4,6 +4,7 @@ import React from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import Watchlist from "@/components/Watchlist";
+import RecentAlerts from "@/components/RecentAlerts";
 
 export default function Home() {
   const { user, loading } = useAuth();
@@ -24,8 +25,9 @@ export default function Home() {
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-6 lg:p-8">
+    <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-8">
       <Watchlist />
+      <RecentAlerts />
     </div>
   );
 }
